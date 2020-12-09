@@ -31,9 +31,9 @@ public class DicmSCP {
     private final Connection conn = new Connection();
 
     private final AssociationHandler associationHandler = new HzjpAssociationHandler();;
-    private  int port  ;
-    private  String aeTitle  ;
-    private  String host  ;
+    private  int port =11112 ;
+    private  String aeTitle = "EasySCP" ;
+    private  String host ="127.0.0.1" ;
     private    boolean enableTls = false;
     private boolean ServerStarted = false;
 
@@ -86,7 +86,8 @@ public class DicmSCP {
     /*
     usage  // --ae=DicmQRSCP  --host=192.168.1.92  --port=11112
      */
-    public  DicmSCP( ){
+    public  DicmSCP(  ){
+
 
     }
 
@@ -95,23 +96,32 @@ public class DicmSCP {
     public void start() {
         LOG.info("DicmSCP    start ....");
         try {
-            LOG.info(ctx.toString());
 
-            if(!ctx.containsOption("port")){
-                port = 11112;
-            }else {
-                port = Integer.parseInt( ctx.getOptionValues("port").get(0));
+            Properties dcmcfg = CLIUtils.loadProperties(
+                    "resource:scpsettings.properties",
+                    null);
+            aeTitle = dcmcfg.getProperty("ae");
+            port =Integer.parseInt(dcmcfg.getProperty("port"));
+            host = dcmcfg.getProperty("host");
+
+            if(ctx != null ){
+                LOG.info(ctx.toString());
+
+                if(ctx.containsOption("port")){
+
+                    port = Integer.parseInt( ctx.getOptionValues("port").get(0));
+                }
+                if(ctx.containsOption("ae")){
+
+                    aeTitle = ctx.getOptionValues("ae").get(0);
+                }
+                if(ctx.containsOption("host")){
+
+                    host =  ctx.getOptionValues("host").get(0);
+                }
             }
-            if(!ctx.containsOption("ae")){
-                aeTitle ="EasySCP";
-            } else {
-                aeTitle = ctx.getOptionValues("ae").get(0);
-            }
-            if(!ctx.containsOption("host")){
-                host =  "0.0.0.0";
-            }else {
-                host =  ctx.getOptionValues("host").get(0);
-            }
+
+            LOG.info("DicmSCP Setting is  {"+  aeTitle  +","+ host +","+ port+"}");
 
 
             conn.setReceivePDULength(Connection.DEF_MAX_PDU_LENGTH);
