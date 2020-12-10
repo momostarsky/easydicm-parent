@@ -1,20 +1,30 @@
 package com.easydicm.storescp;
+
+import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
+import org.dcm4che3.io.DicomInputStream;
+import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.dcm4che3.tool.common.CLIUtils;
+import org.dcm4che3.util.AttributesFormat;
+import org.dcm4che3.util.SafeClose;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationContextFactory;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Controller;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
+import java.io.File;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
@@ -30,15 +40,18 @@ public class DicmSCP {
     private final ApplicationEntity ae = new ApplicationEntity("*");
     private final Connection conn = new Connection();
 
-    private final AssociationHandler associationHandler = new HzjpAssociationHandler();;
-    private  int port =11112 ;
-    private  String aeTitle = "EasySCP" ;
-    private  String host ="127.0.0.1" ;
-    private    boolean enableTls = false;
+    private final AssociationHandler associationHandler = new HzjpAssociationHandler();
+    ;
+    private int port = 11112;
+    private String aeTitle = "EasySCP";
+    private String host = "127.0.0.1";
+    private boolean enableTls = false;
     private boolean ServerStarted = false;
 
+    private File storageDir;
 
-    private void configureTransferCapability()  throws IOException {
+
+    private void configureTransferCapability() throws IOException {
         ae.addTransferCapability(new TransferCapability(null,
                 UID.VerificationSOPClass,
                 TransferCapability.Role.SCP,
@@ -76,17 +89,23 @@ public class DicmSCP {
     protected DicomServiceRegistry createServiceRegistry() {
         DicomServiceRegistry serviceRegistry = new DicomServiceRegistry();
         serviceRegistry.addDicomService(new BasicCEchoSCP());
-        serviceRegistry.addDicomService(new CStoreScp());
+        CStoreScp scp = new CStoreScp();
+        scp.setStorageDirectory(storageDir);
+        serviceRegistry.addDicomService(scp);
         // serviceRegistry.addDicomService(new CGetSCP());
         return serviceRegistry;
     }
 
-    private @Autowired ApplicationArguments ctx;
+    private final ApplicationArguments ctx;
 
     /*
     usage  // --ae=DicmQRSCP  --host=192.168.1.92  --port=11112
      */
-    public  DicmSCP(  ){
+
+
+    public DicmSCP(@Autowired ApplicationArguments ctx) {
+
+        this.ctx = ctx;
 
 
     }
@@ -101,27 +120,32 @@ public class DicmSCP {
                     "resource:scpsettings.properties",
                     null);
             aeTitle = dcmcfg.getProperty("ae");
-            port =Integer.parseInt(dcmcfg.getProperty("port"));
+            port = Integer.parseInt(dcmcfg.getProperty("port"));
             host = dcmcfg.getProperty("host");
+            storageDir = new File(dcmcfg.getProperty("storagedir"));
 
-            if(ctx != null ){
+            if (ctx != null) {
                 LOG.info(ctx.toString());
 
-                if(ctx.containsOption("port")){
+                if (ctx.containsOption("port")) {
 
-                    port = Integer.parseInt( ctx.getOptionValues("port").get(0));
+                    port = Integer.parseInt(ctx.getOptionValues("port").get(0));
                 }
-                if(ctx.containsOption("ae")){
+                if (ctx.containsOption("ae")) {
 
                     aeTitle = ctx.getOptionValues("ae").get(0);
                 }
-                if(ctx.containsOption("host")){
+                if (ctx.containsOption("host")) {
 
-                    host =  ctx.getOptionValues("host").get(0);
+                    host = ctx.getOptionValues("host").get(0);
+                }
+                if (ctx.containsOption("storagedir")) {
+
+                    storageDir = new File(ctx.getOptionValues("storagedir").get(0));
                 }
             }
 
-            LOG.info("DicmSCP Setting is  {"+  aeTitle  +","+ host +","+ port+"}");
+            LOG.info("DicmSCP Setting is  {" + aeTitle + "," + host + "," + port + "}");
 
 
             conn.setReceivePDULength(Connection.DEF_MAX_PDU_LENGTH);
@@ -164,10 +188,10 @@ public class DicmSCP {
     public void clear() {
         LOG.info("DicmSCP    remove connections ....");
         List<Connection> connections = ae.getConnections();
-        if( connections .size() > 0){
+        if (connections.size() > 0) {
 
             for (Connection cn : connections) {
-                if( cn != null){
+                if (cn != null) {
                     device.removeConnection(cn);
                 }
 
@@ -176,7 +200,6 @@ public class DicmSCP {
         device.removeApplicationEntity(ae);
         LOG.info("DicmSCP    remove connections end !");
     }
-
 
 
 }
