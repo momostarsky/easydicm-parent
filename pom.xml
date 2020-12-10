@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -8,7 +8,7 @@
     <packaging>pom</packaging>
 
 
-    <version>${global.version}</version>
+    <version>1.1-SNAPSHOT</version>
 
     <!--
     如果更新版本號一個文件一個文件的去改太麻煩，可以用以下命令一次性更新版本號：
@@ -22,7 +22,7 @@
     </parent>
 
     <properties>
-        <global.version>1.0-SNAPSHOT</global.version>
+<!--        <global.version>1.0-SNAPSHOT</global.version>-->
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <dcm4chee.version>5.22.4</dcm4chee.version>

@@ -8,8 +8,9 @@
 
     <parent>
         <groupId>com.easydicm</groupId>
-        <version>${global.version}</version>
+        <version>1.1-SNAPSHOT</version>
         <artifactId>easydicm-parent</artifactId>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
 
