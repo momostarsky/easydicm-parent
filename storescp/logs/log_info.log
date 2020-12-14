@@ -1,0 +1,11 @@
+2020-12-14 15:42:33.057 [main] INFO  com.easydicm.storescp.StorescpApplicationTests - Starting StorescpApplicationTests using Java 11.0.9 on dhzub with PID 16092 (started by dhz in /home/dhz/work/easydicm-parent/storescp)
+2020-12-14 15:42:33.059 [main] INFO  com.easydicm.storescp.StorescpApplicationTests - The following profiles are active: dev
+2020-12-14 15:42:33.627 [main] INFO  com.easydicm.storescp.DicmSCP - DicmSCP    start ....
+2020-12-14 15:42:33.634 [main] INFO  com.easydicm.storescp.DicmSCP - org.springframework.boot.DefaultApplicationArguments@582a764a
+2020-12-14 15:42:33.643 [main] INFO  com.easydicm.storescp.DicmSCP - DicmSCP Setting is  {EasySCP,127.0.0.1,11112}
+2020-12-14 15:42:33.660 [main] INFO  com.easydicm.storescp.DicmSCP - DicmSCP    start success !
+2020-12-14 15:42:33.660 [pool-2-thread-1] INFO  org.dcm4che3.net.Connection - Start TCP Listener on /127.0.0.1:11112
+2020-12-14 15:42:34.009 [main] INFO  o.s.scheduling.concurrent.ThreadPoolTaskExecutor - Initializing ExecutorService 'applicationTaskExecutor'
+2020-12-14 15:42:34.228 [main] INFO  com.easydicm.storescp.StorescpApplicationTests - Started StorescpApplicationTests in 1.569 seconds (JVM running for 2.372)
+2020-12-14 15:42:34.498 [SpringContextShutdownHook] INFO  o.s.scheduling.concurrent.ThreadPoolTaskExecutor - Shutting down ExecutorService 'applicationTaskExecutor'
+2020-12-14 15:42:34.499 [SpringContextShutdownHook] INFO  com.easydicm.storescp.DicmSCP - DicmSCP    remove connections ....
