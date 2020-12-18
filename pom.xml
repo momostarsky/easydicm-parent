@@ -27,6 +27,8 @@
         <dcm4chee.version>5.22.4</dcm4chee.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <google.guava.version>30.0-jre</google.guava.version>
+        <bouncycastle.version>1.67</bouncycastle.version>
+
     </properties>
 
     <dependencies>
@@ -69,6 +71,18 @@
             <artifactId>guava</artifactId>
             <version>${google.guava.version}</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk15on -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+
     </dependencies>
 
 

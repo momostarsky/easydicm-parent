@@ -2,18 +2,25 @@ package com.easydicm.scputil;
 
 import com.google.common.io.CharSource;
 import com.google.common.io.Files;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.util.StringUtils;
+import org.springframework.util.FileSystemUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.nio.file.Paths;
+import java.security.*;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,147 +29,60 @@ class RsaHelperTest {
 
 
     @Test
-
-    public void TextEncrpt() {
-
-        long temp = System.currentTimeMillis();
-        //生成公钥和私钥
-        Map<Integer, String> keyMap = RsaHelper.genKeyPair();
-        //加密字符串
-        System.out.println("公钥:" + keyMap.get(0));
-        System.out.println("私钥:" + keyMap.get(1));
-        System.out.println("生成密钥消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-        String errorMessage = "编程帮，一个分享编程知识的公众号。跟着站长一起学习，每天都有进步。" +
-                "通俗易懂，深入浅出，一篇文章只讲一个知识点。" +
-                "文章不深奥，不需要钻研，在公交、在地铁、在厕所都可以阅读，随时随地涨姿势。" +
-                "文章不涉及代码，不烧脑细胞，人人都可以学习。" +
-                "当你决定关注「编程帮」，你已然超越了90%的程序员！";
-
-        try {
-            RsaHelper.encrypt(errorMessage, keyMap.get(0));
-        } catch (Exception e) {
-            assertThrows(RsaException.class, () -> {
-                throw e;
-            });
-        }
+    public void dotnet2Javat() throws Exception {
 
 
-    }
+        File save2 = new File("./rsakey/C919");
+        String pkname = "CJ1.pubkey", prname = "CJ1.prikey";
+
+        RSAUtil2048.genKeyPairByFilePath(save2, pkname, prname);
+
+        File pkFile = Paths.get(save2.getAbsolutePath(), pkname).toFile();
+        File prFile = Paths.get(save2.getAbsolutePath(), prname).toFile();
+
+        assertTrue(pkFile.exists());
+        assertTrue(prFile.exists());
+        String pubkey = Files.asCharSource(pkFile, StandardCharsets.UTF_8).read();
+        String prikey = Files.asCharSource(prFile, StandardCharsets.UTF_8).read();
 
 
+        String data = "b52ae6a3-1edb-35ce-b777-35733ddb57db:CJ10001 public static String publicDecrypt(String data, RSAPublicKey publicKey) {\n" +
+                "        try {" +
+                "            Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);" +
+                "            cipher.init(Cipher.DECRYPT_MODE, publicKey);" +
+                "            return new String(rsaSplitCodec(cipher, Cipher.DECRYPT_MODE, Base64.decodeBase64(data), publicKey.getModulus().bitLength()), CHARSET);\n" +
+                "        } catch (Exception e) {" +
+                "            throw new RuntimeException(\"解密字符串[\" + data + \"]时遇到异常\", e);" +
+                "        }" +
+                "    }";
+        byte[] dataBuffer = data.getBytes(StandardCharsets.UTF_8);
+        String dataEncrypted = RSAUtil2048.encryptByPrivateKey(dataBuffer, prikey);
+        byte[] dataDe = RSAUtil2048.decryptByPublicKey(dataEncrypted, pubkey);
+        String txtDe = new String(dataDe, StandardCharsets.UTF_8);
+        assertTrue(txtDe.equals(data));
+
+        String sign = RSAUtil2048.sign(dataBuffer, prikey);
+        boolean aok = RSAUtil2048.verify(dataBuffer, pubkey, sign);
+        assertTrue(aok);
 
 
-    @Test
-    public void TextEncrptPubDecryptPri() {
-
-        try {
-            long temp = System.currentTimeMillis();
-            //生成公钥和私钥
-            Map<Integer, String> keyMap = RsaHelper.genKeyPair();
-            //加密字符串
-            System.out.println("公钥:" + keyMap.get(RsaHelper.PUBLIC_KEY));
-            System.out.println("私钥:" + keyMap.get(RsaHelper.PRIVATE_KEY));
-            System.out.println("生成密钥消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            String message = "它允许您在同一测试中测试多个异常 . 在Java 8中支持lambdas，这是在JUnit中测试异常的规范方法";
-            String messageEn = RsaHelper.encrypt(message, keyMap.get(RsaHelper.PUBLIC_KEY));
-            System.out.println("密文:" + messageEn);
-            System.out.println("加密消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            temp = System.currentTimeMillis();
-            String messageDe = RsaHelper.decrypt(messageEn, keyMap.get(RsaHelper.PRIVATE_KEY));
-            System.out.println("解密:" + messageDe);
-            System.out.println("解密消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            assertTrue(message.equals(messageDe));
-
-        } catch (Exception e) {
-
-        }
-    }
+        String dataEncryptedX = RSAUtil2048.encryptByPublicKey(dataBuffer, pubkey);
+        byte[] dataDeX = RSAUtil2048.decryptByPrivateKey(dataEncryptedX, prikey);
+        String txtDeX = new String(dataDeX, StandardCharsets.UTF_8);
+        assertTrue(txtDeX.equals(data));
 
 
-    @Test
-    public void TextEncrptPriDecryptPub() {
-
-        try {
-            long temp = System.currentTimeMillis();
-            //生成公钥和私钥
-            Map<Integer, String> keyMap = RsaHelper.genKeyPair();
-            //加密字符串
-            System.out.println("公钥:" + keyMap.get(RsaHelper.PUBLIC_KEY));
-            System.out.println("私钥:" + keyMap.get(RsaHelper.PRIVATE_KEY));
-            System.out.println("生成密钥消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            String message = "它允许您在同一测试中测试多个异常 . 在Java 8中支持lambdas，这是在JUnit中测试异常的规范方法";
-            String messageEn = RsaHelper.encrypt(message, keyMap.get(RsaHelper.PUBLIC_KEY));
-            System.out.println("密文:" + messageEn);
-            System.out.println("加密消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            temp = System.currentTimeMillis();
-            String messageDe = RsaHelper.decrypt(messageEn, keyMap.get(RsaHelper.PRIVATE_KEY));
-            System.out.println("解密:" + messageDe);
-            System.out.println("解密消耗时间:" + (System.currentTimeMillis() - temp) / 1000.0 + "秒");
-            assertTrue(message.equals(messageDe));
-
-        } catch (Exception e) {
-
-        }
-    }
-
-    @Test
-    public  void RsaPersistent() throws Exception {
-        Map<Integer, String> keyMap = RsaHelper.genKeyPair();
-        String pubkey = keyMap.get(RsaHelper.PUBLIC_KEY);
-        String prikey = keyMap.get(RsaHelper.PRIVATE_KEY);
-
-        PrivateKey privateKey = RsaHelper.loadPrivateKey(prikey);
-        assertTrue( privateKey != null);
-        PublicKey  publicKey = RsaHelper.loadPublicKey(pubkey);
-        assertTrue(publicKey != null);
-
-        // RSA公钥私钥的磁盘序列话
-        RsaHelper.savePublicKey(publicKey, new File("./pub.keystore"));
-        RsaHelper.savePrivateKey(privateKey, new File("./pri.keystore"));
+        String netPubKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAus/pIWOvSVUADsTCU1nF6iDMTYv3CHUQRCFJMVwV6XsDlwsSetHergNpzwNglGlFEQfEyGEGKYH5OWwqI0HPKIlYs3KQ9jbUaR++oRpTcgXZgzZN4lVecSchPiCSBYRWAuCMLoV4joLm7uwKVoQlLYG/7yj8c3LacznL1pYBKOff+xfnQxdZ1dLkfo9HwATJGlWYp5RLRsPbDVpbr5aUEyp4Pyr4XQ/T90BbkHfSVvlCdJdP2MLkGTNqoJNTcsiYcyFDduoY+z4KTJTi3Kjac2fLH8Qvfkwt+Vhl38O6aKusju/NhhwxNGGb/KwaA03SI30ujTiJO/beuXlNcCFOtQIDAQAB";
+        String netEncryptedData = "ctsJBWwzpxtKr6+XXlomr2colqVOg+F9z8/LuqXuBMP5dHhCIU1PIkbZNbH0l+VLA05Ku4228aS73lLiGipYOIMTtvEZ+Mw+sQZE0eihFPhPmXxhbr4dd2LOoG23p9jJhxjSWUi8Iv6rK38xx6UJn6UrIPC0seNldQRZh8Mm0g1boWayqFk8R6DtQpNaD6WP7IzeoVZmnX0KQofhuLg9AYOP8h+jxAEuwBWdSTmvvlYd7kq5AEflzM/w6ONIcdCk8WUOY7LnsTASvbx1kvykpw+iaijpY67Zan11fubzGkYg7+taqdGyS4Vv5DTbNACNg6ew5Ht8yod5Syil5/v0wg==";
+        String netEncryptedSign = "pa9n3UxDVuRdI7TA1Ms2Zsr6v6BkjUfS7PXhQErXAeJjqQfWqnW7hyaSlOt1dSkN7mqN6yLMRvYaD6o8VNwzW6tyPTmL+Tn4QRQn16xtWrVmyJflTouLU5m3P+bGui0y7Xm5c0jKTi3L1i2EXDZr76Ob56iUgClM4iQzRdfgrG4y9h5arUeWJhdXP7u/5bGuRtG134Bsul6z1oStB5kekq8sIgO58aaNT7czlxYVGqhnSVqExviCFzw+n11boYzzj82fU2S7Symb8e8U4gypMrqJp5GeXgwe4Fv/UGpHjzm1UU3yvVjNR8ZrIqAGhtNAVgc5uBU9UNEHdpMqcJxCOQ==";
 
 
-        CharSource resultpub = Files.asCharSource(new File("./pub.keystore"),StandardCharsets.UTF_8);
-        String apub = resultpub.read();
-        assertTrue(  pubkey.equals( apub));
+        boolean ok = RSAUtil2048.verify(Base64.getDecoder().decode(netEncryptedData), netPubKey, netEncryptedSign);
 
-        CharSource resultpri = Files.asCharSource(new File("./pri.keystore"),StandardCharsets.UTF_8);
-        String apri = resultpri.read();
-        assertTrue(  prikey.equals( apri));
-
-
-        RSAPrivateKey  kpri = RsaHelper.loadPrivateKey(apri);
-        RSAPublicKey   kpub = RsaHelper.loadPublicKey(apub);
-        String message = "它允许您在同一测试中测试多个异常 . 在Java 8中支持lambdas，这是在JUnit中测试异常的规范方法";
-        System.out.println("原文:" + message);
-        String messageEn = RsaHelper.encrypt(message,  kpri);
-        System.out.println("密文:" + message);
-        String messageDe = RsaHelper.decrypt(messageEn, kpub);
-        System.out.println("解密:" + messageDe);
-        assertTrue(message.equals(messageDe));
-
-
-
-        System.out.println("---------------私钥签名过程------------------");
-        String content="ihep_这是用于签名的原始数据";
-        String signstr=RSASignature.sign(content, apri);
-        System.out.println("签名原串："+content);
-        System.out.println("签名串："+signstr);
-        System.out.println();
-
-        System.out.println("---------------公钥校验签名------------------");
-        System.out.println("签名原串："+content);
-        System.out.println("签名串："+signstr);
-
-        System.out.println("验签结果："+RSASignature.doCheck(content, signstr,apub));
-        System.out.println();
-
-
+        assertTrue(ok);
 
 
     }
 
-    @Test
-    public void signCheck(){
 
-    }
 }
