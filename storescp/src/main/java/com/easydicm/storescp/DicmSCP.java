@@ -1,29 +1,17 @@
 package com.easydicm.storescp;
 
-import org.dcm4che3.data.Attributes;
-import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
-import org.dcm4che3.io.DicomInputStream;
-import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.dcm4che3.tool.common.CLIUtils;
-import org.dcm4che3.util.AttributesFormat;
-import org.dcm4che3.util.SafeClose;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationContextFactory;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.SpringApplication;
-import org.springframework.context.ApplicationContext;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Controller;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.annotation.Resource;
 import java.io.File;
 import java.io.IOException;
 import java.util.EnumSet;
@@ -40,7 +28,7 @@ public class DicmSCP {
     private final ApplicationEntity ae = new ApplicationEntity("*");
     private final Connection conn = new Connection();
 
-    private final AssociationHandler associationHandler = new HzjpAssociationHandler();
+    private final AssociationHandler associationHandler = new RsaAssociationHandler();
     ;
     private int port = 11112;
     private String aeTitle = "EasySCP";

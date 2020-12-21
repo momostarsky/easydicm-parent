@@ -34,13 +34,14 @@ public class RSAUtil2048 {
     public static final String PUBLIC_KEY = "RSAPublicKey";
     //获取私钥的key
     public static final String PRIVATE_KEY = "RSAPrivateKey";
-    //RSA最大加密明文大小
-    private static final int MAX_ENCRYPT_BLOCK = 200;
-    //RSA最大解密密文大小
-    private static final int MAX_DECRYPT_BLOCK = 211;
+
     //RSA KeySize
     private static final int KeySize = 1688;
 
+    //RSA最大加密明文大小
+    private static final int MAX_ENCRYPT_BLOCK = KeySize / 8 - 11;
+    //RSA最大解密密文大小
+    private static final int MAX_DECRYPT_BLOCK = KeySize / 8 ;
 
     protected  static  KeyPair getKeyPair() throws NoSuchAlgorithmException {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(KEY_ALGORITHM);

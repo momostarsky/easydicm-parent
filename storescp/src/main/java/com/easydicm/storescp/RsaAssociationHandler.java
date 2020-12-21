@@ -5,43 +5,37 @@ import com.easydicm.scputil.RSAUtil2048;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
-import org.dcm4che3.net.pdu.AAssociateAC;
-import org.dcm4che3.net.pdu.AAssociateRQ;
-import org.dcm4che3.net.pdu.ExtendedNegotiation;
-import org.dcm4che3.net.pdu.UserIdentityAC;
-import org.dcm4che3.net.service.DicomServiceException;
+import org.dcm4che3.net.pdu.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.security.interfaces.RSAPublicKey;
 import java.util.*;
 
 
 /**
  * @author daihanzhang
  */
-public class HzjpAssociationHandler extends AssociationHandler {
+public class RsaAssociationHandler extends AssociationHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(HzjpAssociationHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RsaAssociationHandler.class);
 
     //构造
-    public HzjpAssociationHandler() {
+    public RsaAssociationHandler() {
         super();
     }
 
     @Override
     protected AAssociateAC makeAAssociateAC(Association as, AAssociateRQ rq, UserIdentityAC userIdentity) throws IOException {
-        LOG.info("=====makeAAssociateAC BEGIN=====");
+        LOG.info("=====makeAAssociateAC BEGIN=====" +  as.getCalledAET() +">>"+ as.getCallingAET());
         //LOG.info("=====makeAAssociateAC BEGIN=====");
-        LOG.info(as.getCalledAET());
-        LOG.info(as.getCallingAET());
+
         Socket socket = as.getSocket();
         //1. 通过建立一个SocketAddress对象，可以在多次连接同一个服务器时使用这个SocketAddress对象。
         //2. 在Socket类中提供了两个方法：getRemoteSocketAddress和getLocalSocketAddress，
@@ -49,8 +43,9 @@ public class HzjpAssociationHandler extends AssociationHandler {
         SocketAddress sd = socket.getRemoteSocketAddress();
         //InetSocketAddress实现 IP 套接字地址（IP 地址 + 端口号）
         InetSocketAddress hold = (InetSocketAddress) sd;
+        String remoteIdp = hold.getAddress().getHostAddress();
         LOG.info(String.format("remotePort:%d", hold.getPort()));
-        LOG.info(String.format("remoteIpAddress:%s", hold.getAddress().getHostAddress()));
+        LOG.info(String.format("remoteIpAddress:%s",  remoteIdp));
 
         Collection<ExtendedNegotiation> extMsg = rq.getExtendedNegotiations();
 
@@ -81,15 +76,34 @@ public class HzjpAssociationHandler extends AssociationHandler {
         LOG.info("applicationIdEncrtyped" + "=" + applicationIdEncrtyped);
         LOG.info("applicationIdSignData" + "=" + applicationIdSignData);
 
+        if(!StringUtils.hasText(clientId)
+        && !StringUtils.hasText(applicationId)
+        && !StringUtils.hasText(applicationIdEncrtyped)
+        && !StringUtils.hasText(applicationIdSignData)){
+            LOG.warn(String.format("ExtendedNegotiations is Empty :%s",  remoteIdp));
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+        }
 
         Path pubkey = Paths.get("./rsakey", clientId, applicationId + ".prikey");
+        if(!pubkey.toFile().exists()){
+            LOG.warn(String.format("PrivateKey is not exits :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+        }
+
         String keyContent = Files.readString(pubkey, StandardCharsets.UTF_8);
         String appid = null;
         try {
 
             appid = new String(RSAUtil2048.decryptByPrivateKey(applicationIdEncrtyped, keyContent), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            e.printStackTrace();
+                LOG.warn(String.format("decryptByPrivateKey Error   :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+                throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                        AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                        AAssociateRJ.REASON_NO_REASON_GIVEN);
         }
         LOG.info("applicationIdDecrypted " + "=" + appid);
         if (!appid.equals(applicationId)) {
@@ -97,17 +111,27 @@ public class HzjpAssociationHandler extends AssociationHandler {
         }
         byte[] appData = applicationId.getBytes(StandardCharsets.UTF_8);
         Path userPk = Paths.get("./rsakey", clientId, applicationId + ".userpk");
+        if(!userPk.toFile().exists()){
+            LOG.warn(String.format("userPublicKey is Not Exists :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+        }
         String clientContent = Files.readString(userPk, StandardCharsets.UTF_8);
-        boolean ok;
+        boolean ok = false;
         try {
             ok = RSAUtil2048.verify(appData, clientContent, applicationIdSignData);
         } catch (Exception e) {
-            throw new IOException("data is not signed!");
+            LOG.warn(String.format("verify is Error :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_NO_REASON_GIVEN);
         }
-        if (!ok) {
-            throw new IOException("data is uncorrect!");
+        if(!ok){
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_NO_REASON_GIVEN);
         }
-
         return super.makeAAssociateAC(as, rq, userIdentity);
 
 
