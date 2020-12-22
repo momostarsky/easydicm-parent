@@ -1,5 +1,6 @@
 package com.easydicm.storescp;
 
+import com.easydicm.storescp.services.DicomSave;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.service.BasicCEchoSCP;
@@ -37,6 +38,10 @@ public class DicmSCP {
     private boolean ServerStarted = false;
 
     private File storageDir;
+
+    @Autowired
+    private DicomSave dicomSave;
+
 
 
     private void configureTransferCapability() throws IOException {
@@ -77,10 +82,14 @@ public class DicmSCP {
     protected DicomServiceRegistry createServiceRegistry() {
         DicomServiceRegistry serviceRegistry = new DicomServiceRegistry();
         serviceRegistry.addDicomService(new BasicCEchoSCP());
-        CStoreScp scp = new CStoreScp();
+        CStoreScp scp = new CStoreScp(this.dicomSave);
         scp.setStorageDirectory(storageDir);
         serviceRegistry.addDicomService(scp);
-        // serviceRegistry.addDicomService(new CGetSCP());
+
+        CStorageCommitmentScp stgCmt = new CStorageCommitmentScp(this.device);
+        serviceRegistry.addDicomService(stgCmt);
+
+
         return serviceRegistry;
     }
 

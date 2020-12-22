@@ -5,7 +5,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.easydicm.storescp")
+
 public class StorescpApplication implements ApplicationRunner {
 
     public static void main(String[] args) {

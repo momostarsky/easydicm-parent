@@ -1,6 +1,7 @@
 package com.easydicm.storescp;
 
 
+import com.easydicm.storescp.services.DicomSave;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
@@ -12,27 +13,32 @@ import org.dcm4che3.net.PDVInputStream;
 import org.dcm4che3.net.Status;
 import org.dcm4che3.net.pdu.PresentationContext;
 import org.dcm4che3.net.service.BasicCStoreSCP;
-import org.dcm4che3.net.service.DicomServiceException;
 import org.dcm4che3.util.AttributesFormat;
 import org.dcm4che3.util.SafeClose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 
 @Component
-public class   CStoreScp  extends  BasicCStoreSCP   {
+public class CStoreScp extends BasicCStoreSCP {
 
     static final Logger LOG = LoggerFactory.getLogger(CStoreScp.class);
     private static final String PART_EXT = ".part";
 
 
+    private DicomSave dicomSave;
 
-    public CStoreScp(){
+    public CStoreScp(DicomSave dicomSave) {
         super("*");
+
+        this.dicomSave = dicomSave;
 
     }
 
@@ -103,7 +109,6 @@ public class   CStoreScp  extends  BasicCStoreSCP   {
     }
 
 
-
     public void setReceiveDelays(int[] receiveDelays) {
         this.receiveDelays = receiveDelays;
     }
@@ -112,33 +117,43 @@ public class   CStoreScp  extends  BasicCStoreSCP   {
         this.responseDelays = responseDelays;
     }
 
+
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
 
         sleep(as, receiveDelays);
         try {
 
-            if (storageDir == null){
+            if (storageDir == null) {
                 rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
                 return;
             }
 
-
+            String clientId = as.getProperty(GlobalConstant.AssicationClientId).toString();
+            String appid = as.getProperty(GlobalConstant.AssicationApplicationId).toString();
             String cuid = rq.getString(Tag.AffectedSOPClassUID);
             String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
             String tsuid = pc.getTransferSyntax();
+
             File file = new File(storageDir, iuid + PART_EXT);
+            String dir = storageDir.getAbsolutePath();
+            Path savePath = Paths.get( dir ,clientId,  iuid + ".dcm");
             try {
+
                 storeTo(as, as.createFileMetaInformation(iuid, cuid, tsuid),
                         data, file);
 
-                renameTo(as, file, new File(storageDir,
-                        filePathFormat == null
-                                ? iuid
-                                : filePathFormat.format(parse(file))));
+
+                if (!savePath.getParent().toFile().exists()) {
+                    savePath.toFile().mkdirs();
+                }
+
+                renameTo(as, file, savePath.toFile());
+                dicomSave.dicomFilePersist(savePath.toFile(), cuid, iuid, clientId, appid);
                 rsp.setInt(Tag.Status, VR.US, Status.Success);
             } catch (Exception e) {
                 deleteFile(as, file);
+                deleteFile(as, savePath.toFile());
                 rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
                 LOG.error(e.getMessage());
             }

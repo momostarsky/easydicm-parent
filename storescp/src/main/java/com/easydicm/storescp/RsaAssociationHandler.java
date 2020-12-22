@@ -33,7 +33,7 @@ public class RsaAssociationHandler extends AssociationHandler {
 
     @Override
     protected AAssociateAC makeAAssociateAC(Association as, AAssociateRQ rq, UserIdentityAC userIdentity) throws IOException {
-        LOG.info("=====makeAAssociateAC BEGIN=====" +  as.getCalledAET() +">>"+ as.getCallingAET());
+        LOG.info("=====makeAAssociateAC BEGIN=====" + as.getCalledAET() + ">>" + as.getCallingAET());
         //LOG.info("=====makeAAssociateAC BEGIN=====");
 
         Socket socket = as.getSocket();
@@ -45,7 +45,7 @@ public class RsaAssociationHandler extends AssociationHandler {
         InetSocketAddress hold = (InetSocketAddress) sd;
         String remoteIdp = hold.getAddress().getHostAddress();
         LOG.info(String.format("remotePort:%d", hold.getPort()));
-        LOG.info(String.format("remoteIpAddress:%s",  remoteIdp));
+        LOG.info(String.format("remoteIpAddress:%s", remoteIdp));
 
         Collection<ExtendedNegotiation> extMsg = rq.getExtendedNegotiations();
 
@@ -76,22 +76,22 @@ public class RsaAssociationHandler extends AssociationHandler {
         LOG.info("applicationIdEncrtyped" + "=" + applicationIdEncrtyped);
         LOG.info("applicationIdSignData" + "=" + applicationIdSignData);
 
-        if(!StringUtils.hasText(clientId)
-        && !StringUtils.hasText(applicationId)
-        && !StringUtils.hasText(applicationIdEncrtyped)
-        && !StringUtils.hasText(applicationIdSignData)){
-            LOG.warn(String.format("ExtendedNegotiations is Empty :%s",  remoteIdp));
+        if (!StringUtils.hasText(clientId)
+                && !StringUtils.hasText(applicationId)
+                && !StringUtils.hasText(applicationIdEncrtyped)
+                && !StringUtils.hasText(applicationIdSignData)) {
+            LOG.warn(String.format("ExtendedNegotiations is Empty :%s", remoteIdp));
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
 
         Path pubkey = Paths.get("./rsakey", clientId, applicationId + ".prikey");
-        if(!pubkey.toFile().exists()){
-            LOG.warn(String.format("PrivateKey is not exits :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+        if (!pubkey.toFile().exists()) {
+            LOG.warn(String.format("PrivateKey is not exits :%s - %s:%s", remoteIdp, clientId, applicationId));
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
 
         String keyContent = Files.readString(pubkey, StandardCharsets.UTF_8);
@@ -100,10 +100,10 @@ public class RsaAssociationHandler extends AssociationHandler {
 
             appid = new String(RSAUtil2048.decryptByPrivateKey(applicationIdEncrtyped, keyContent), StandardCharsets.UTF_8);
         } catch (Exception e) {
-                LOG.warn(String.format("decryptByPrivateKey Error   :%s - %s:%s",  remoteIdp, clientId ,applicationId));
-                throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
-                        AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                        AAssociateRJ.REASON_NO_REASON_GIVEN);
+            LOG.warn(String.format("decryptByPrivateKey Error   :%s - %s:%s", remoteIdp, clientId, applicationId));
+            throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
+                    AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
         LOG.info("applicationIdDecrypted " + "=" + appid);
         if (!appid.equals(applicationId)) {
@@ -111,27 +111,29 @@ public class RsaAssociationHandler extends AssociationHandler {
         }
         byte[] appData = applicationId.getBytes(StandardCharsets.UTF_8);
         Path userPk = Paths.get("./rsakey", clientId, applicationId + ".userpk");
-        if(!userPk.toFile().exists()){
-            LOG.warn(String.format("userPublicKey is Not Exists :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+        if (!userPk.toFile().exists()) {
+            LOG.warn(String.format("userPublicKey is Not Exists :%s - %s:%s", remoteIdp, clientId, applicationId));
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
         String clientContent = Files.readString(userPk, StandardCharsets.UTF_8);
         boolean ok = false;
         try {
             ok = RSAUtil2048.verify(appData, clientContent, applicationIdSignData);
         } catch (Exception e) {
-            LOG.warn(String.format("verify is Error :%s - %s:%s",  remoteIdp, clientId ,applicationId));
+            LOG.warn(String.format("verify is Error :%s - %s:%s", remoteIdp, clientId, applicationId));
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
-        if(!ok){
+        if (!ok) {
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
-                    AAssociateRJ.REASON_NO_REASON_GIVEN);
+                    AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
         }
+        as.setProperty(GlobalConstant.AssicationClientId, clientId);
+        as.setProperty(GlobalConstant.AssicationApplicationId, applicationId);
         return super.makeAAssociateAC(as, rq, userIdentity);
 
 
