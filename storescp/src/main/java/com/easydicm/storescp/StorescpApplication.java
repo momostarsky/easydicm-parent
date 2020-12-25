@@ -1,12 +1,17 @@
 package com.easydicm.storescp;
 
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 
-@SpringBootApplication(scanBasePackages = "com.easydicm.storescp")
-
+/**
+ * @author dhz
+ */
+@SpringBootApplication(scanBasePackages = "com.easydicm.storescp" )
+@MapperScan("com.easydicm.scpdb")
 public class StorescpApplication implements ApplicationRunner {
 
     public static void main(String[] args) {

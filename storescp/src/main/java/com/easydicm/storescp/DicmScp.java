@@ -1,6 +1,6 @@
 package com.easydicm.storescp;
 
-import com.easydicm.storescp.services.DicomSave;
+import com.easydicm.storescp.services.IDicomSave;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.service.BasicCEchoSCP;
@@ -22,15 +22,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-@Controller("DicmSCP")
-public class DicmSCP {
-    static final org.slf4j.Logger LOG = LoggerFactory.getLogger(DicmSCP.class);
+
+
+/**
+ * @author dhz
+ */
+@Controller("DicmScp")
+public class DicmScp {
+
+
+
+    static final org.slf4j.Logger LOG = LoggerFactory.getLogger(DicmScp.class);
     private final Device device = new Device("HzjpDicomDevice");
     private final ApplicationEntity ae = new ApplicationEntity("*");
     private final Connection conn = new Connection();
 
     private final AssociationHandler associationHandler = new RsaAssociationHandler();
-    ;
+    private final IDicomSave dicomSave;
+
     private int port = 11112;
     private String aeTitle = "EasySCP";
     private String host = "127.0.0.1";
@@ -39,8 +48,9 @@ public class DicmSCP {
 
     private File storageDir;
 
-    @Autowired
-    private DicomSave dicomSave;
+
+
+
 
 
 
@@ -82,11 +92,11 @@ public class DicmSCP {
     protected DicomServiceRegistry createServiceRegistry() {
         DicomServiceRegistry serviceRegistry = new DicomServiceRegistry();
         serviceRegistry.addDicomService(new BasicCEchoSCP());
-        CStoreScp scp = new CStoreScp(this.dicomSave);
+        StoreScp scp = new StoreScp(this.dicomSave);
         scp.setStorageDirectory(storageDir);
         serviceRegistry.addDicomService(scp);
 
-        CStorageCommitmentScp stgCmt = new CStorageCommitmentScp(this.device);
+        StorageCommitmentScp stgCmt = new StorageCommitmentScp(this.device);
         serviceRegistry.addDicomService(stgCmt);
 
 
@@ -100,13 +110,21 @@ public class DicmSCP {
      */
 
 
-    public DicmSCP(@Autowired ApplicationArguments ctx) {
+    public DicmScp(@Autowired ApplicationArguments ctx,
+                   @Autowired  IDicomSave dicomSave
+
+                   ) {
 
         this.ctx = ctx;
+        this.dicomSave = dicomSave;
 
 
     }
 
+    final String OPT_PORT ="port";
+    final String OPT_AE ="ae";
+    final String OPT_HOST ="host";
+    final String OPT_STORAGEDIR ="storagedir";
 
     @PostConstruct
     public void start() {
@@ -116,29 +134,29 @@ public class DicmSCP {
             Properties dcmcfg = CLIUtils.loadProperties(
                     "resource:scpsettings.properties",
                     null);
-            aeTitle = dcmcfg.getProperty("ae");
-            port = Integer.parseInt(dcmcfg.getProperty("port"));
-            host = dcmcfg.getProperty("host");
-            storageDir = new File(dcmcfg.getProperty("storagedir"));
+            aeTitle = dcmcfg.getProperty(OPT_AE);
+            port = Integer.parseInt(dcmcfg.getProperty(OPT_PORT));
+            host = dcmcfg.getProperty(OPT_HOST);
+            storageDir = new File(dcmcfg.getProperty(OPT_STORAGEDIR));
 
             if (ctx != null) {
                 LOG.info(ctx.toString());
 
-                if (ctx.containsOption("port")) {
+                if (ctx.containsOption(OPT_PORT)) {
 
-                    port = Integer.parseInt(ctx.getOptionValues("port").get(0));
+                    port = Integer.parseInt(ctx.getOptionValues(OPT_PORT).get(0));
                 }
-                if (ctx.containsOption("ae")) {
+                if (ctx.containsOption(OPT_AE)) {
 
-                    aeTitle = ctx.getOptionValues("ae").get(0);
+                    aeTitle = ctx.getOptionValues(OPT_AE).get(0);
                 }
-                if (ctx.containsOption("host")) {
+                if (ctx.containsOption(OPT_HOST)) {
 
-                    host = ctx.getOptionValues("host").get(0);
+                    host = ctx.getOptionValues(OPT_HOST).get(0);
                 }
-                if (ctx.containsOption("storagedir")) {
+                if (ctx.containsOption(OPT_STORAGEDIR)) {
 
-                    storageDir = new File(ctx.getOptionValues("storagedir").get(0));
+                    storageDir = new File(ctx.getOptionValues(OPT_STORAGEDIR).get(0));
                 }
             }
 

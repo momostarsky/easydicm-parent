@@ -1,7 +1,7 @@
 package com.easydicm.storescp;
 
 
-import com.easydicm.storescp.services.DicomSave;
+import com.easydicm.storescp.services.IDicomSave;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
@@ -17,7 +17,6 @@ import org.dcm4che3.util.AttributesFormat;
 import org.dcm4che3.util.SafeClose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -26,19 +25,23 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 
+/**
+ * @author dhz
+ */
 @Component
-public class CStoreScp extends BasicCStoreSCP {
 
-    static final Logger LOG = LoggerFactory.getLogger(CStoreScp.class);
+public class StoreScp extends BasicCStoreSCP {
+
+    static final Logger LOG = LoggerFactory.getLogger(StoreScp.class);
     private static final String PART_EXT = ".part";
 
 
-    private DicomSave dicomSave;
+    private IDicomSave IDicomSave;
 
-    public CStoreScp(DicomSave dicomSave) {
+    public StoreScp(IDicomSave IDicomSave) {
         super("*");
 
-        this.dicomSave = dicomSave;
+        this.IDicomSave = IDicomSave;
 
     }
 
@@ -149,7 +152,7 @@ public class CStoreScp extends BasicCStoreSCP {
                 }
 
                 renameTo(as, file, savePath.toFile());
-                dicomSave.dicomFilePersist(savePath.toFile(), cuid, iuid, clientId, appid);
+                IDicomSave.dicomFilePersist(savePath.toFile(), cuid, iuid, clientId, appid);
                 rsp.setInt(Tag.Status, VR.US, Status.Success);
             } catch (Exception e) {
                 deleteFile(as, file);

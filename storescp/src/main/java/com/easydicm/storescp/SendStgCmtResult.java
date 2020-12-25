@@ -77,7 +77,7 @@ class SendStgCmtResult implements Runnable {
                 neventReport(as);
                 return;
             } catch (Exception e) {
-                DicmSCP.LOG.info(
+                DicmScp.LOG.info(
                         "Failed to return Storage Commitment Result in same Association:", e);
             }
         }
@@ -87,7 +87,7 @@ class SendStgCmtResult implements Runnable {
             neventReport(diffAssoc);
             diffAssoc.release();
         } catch (Exception e) {
-            DicmSCP.LOG.error(
+            DicmScp.LOG.error(
                     "Failed to return Storage Commitment Result in new Association:", e);
         }
     }

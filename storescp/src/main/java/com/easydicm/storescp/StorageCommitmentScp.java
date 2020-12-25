@@ -8,16 +8,19 @@ import org.dcm4che3.net.service.DicomServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Console;
 import java.io.IOException;
-import java.util.Map;
 
-public class CStorageCommitmentScp extends AbstractDicomService {
+/**
+ * @author dhz
+ */
+public class StorageCommitmentScp extends AbstractDicomService {
 
-    static final Logger LOG = LoggerFactory.getLogger(CStorageCommitmentScp.class);
+
+
+    static final Logger LOG = LoggerFactory.getLogger(StorageCommitmentScp.class);
 
     private final Device device;
-    public CStorageCommitmentScp(Device device) {
+    public StorageCommitmentScp(Device device) {
         super(UID.StorageCommitmentPushModelSOPClass);
         this.device = device;
     }
@@ -25,20 +28,23 @@ public class CStorageCommitmentScp extends AbstractDicomService {
     @Override
     public void onDimseRQ(Association as, PresentationContext pc, Dimse dimse,
                           Attributes rq, Attributes actionInfo) throws IOException {
-        if (dimse != Dimse.N_ACTION_RQ)
+        if (dimse != Dimse.N_ACTION_RQ) {
             throw new DicomServiceException(Status.UnrecognizedOperation);
+        }
 
         int actionTypeID = rq.getInt(Tag.ActionTypeID, 0);
-        if (actionTypeID != 1)
+        if (actionTypeID != 1) {
             throw new DicomServiceException(Status.NoSuchActionType)
                     .setActionTypeID(actionTypeID);
+        }
 
         Attributes rsp = Commands.mkNActionRSP(rq, Status.Success);
         String callingAET = as.getCallingAET();
         String calledAET = as.getCalledAET();
         Connection remoteConnection = as.getConnection();
-        if (remoteConnection == null)
+        if (remoteConnection == null) {
             throw new DicomServiceException(Status.ProcessingFailure,  "Unknown Calling AET: " + callingAET);
+        }
         Attributes eventInfo =
                 calculateStorageCommitmentResult(calledAET, actionInfo);
         try {
@@ -54,8 +60,9 @@ public class CStorageCommitmentScp extends AbstractDicomService {
         Attributes attrs = new Attributes(3);
         attrs.setString(Tag.ReferencedSOPClassUID, VR.UI, cuid);
         attrs.setString(Tag.ReferencedSOPInstanceUID, VR.UI, iuid);
-        if (failureReason != Status.Success)
+        if (failureReason != Status.Success) {
             attrs.setInt(Tag.FailureReason, VR.US, failureReason);
+        }
         return attrs ;
     }
 
@@ -87,8 +94,9 @@ public class CStorageCommitmentScp extends AbstractDicomService {
                 successSeq.add(refSOP(instUid, clsUid, Status.NoSuchObjectInstance));
             }
         }
-        if (failedSeq.isEmpty())
+        if (failedSeq.isEmpty()) {
             eventInfo.remove(Tag.FailedSOPSequence);
+        }
         return eventInfo;
 
     }

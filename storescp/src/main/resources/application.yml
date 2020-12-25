@@ -1,0 +1,18 @@
+logging:
+    config: classpath:logback-spring.xml
+    file:
+        path: logs
+server:
+    port: 8080
+spring:
+    profiles:
+        active: dev
+#    datasource:
+#        hikari:
+#            minimum-idle: 1
+#            maximum-pool-size: 20
+#            jdbc-url: jdbc:postgresql://192.168.1.101:5432/postgres
+#        driver-class-name: org.postgresql.Driver
+#        url: jdbc:postgresql://192.168.1.101:5432/postgres
+#        data-username: postgres
+#        data-password: dpp#1688
