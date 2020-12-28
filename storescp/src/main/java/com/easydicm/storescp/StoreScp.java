@@ -55,11 +55,12 @@ public class StoreScp extends BasicCStoreSCP {
         int responseDelay = delays != null
                 ? delays[(as.getNumberOfReceived(Dimse.C_STORE_RQ) - 1) % delays.length]
                 : 0;
-        if (responseDelay > 0)
+        if (responseDelay > 0) {
             try {
                 Thread.sleep(responseDelay);
             } catch (InterruptedException ignore) {
             }
+        }
     }
 
     private void storeTo(Association as, Attributes fmi,
@@ -78,10 +79,12 @@ public class StoreScp extends BasicCStoreSCP {
     private static void renameTo(Association as, File from, File dest)
             throws IOException {
         LOG.info("{}: M-RENAME {} to {}", as, from, dest);
-        if (!dest.getParentFile().mkdirs())
+        if (!dest.getParentFile().mkdirs()) {
             dest.delete();
-        if (!from.renameTo(dest))
+        }
+        if (!from.renameTo(dest)) {
             throw new IOException("Failed to rename " + from + " to " + dest);
+        }
     }
 
     private static Attributes parse(File file) throws IOException {
@@ -95,15 +98,17 @@ public class StoreScp extends BasicCStoreSCP {
     }
 
     private static void deleteFile(Association as, File file) {
-        if (file.delete())
+        if (file.delete()) {
             LOG.info("{}: M-DELETE {}", as, file);
-        else
+        } else {
             LOG.warn("{}: M-DELETE {} failed!", as, file);
+        }
     }
 
     public void setStorageDirectory(File storageDir) {
-        if (storageDir != null)
+        if (storageDir != null) {
             storageDir.mkdirs();
+        }
         this.storageDir = storageDir;
     }
 

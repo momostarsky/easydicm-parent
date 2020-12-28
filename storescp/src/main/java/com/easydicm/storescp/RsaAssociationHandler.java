@@ -124,6 +124,7 @@ public class RsaAssociationHandler extends AssociationHandler {
         LOG.info(String.format("remotePort:%d", hold.getPort()));
         LOG.info(String.format("remoteIpAddress:%s", remoteIdp));
         rsaCheck(remoteIdp, as, rq);
+
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
