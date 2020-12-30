@@ -1,3 +1,17 @@
-INSERT INTO user_info(
-    userid,  username
-)VALUES ( <@p name="p.patientId"/>, <@p name="p.patientName"/>);
+INSERT INTO patientinfo(
+    patid,
+    patname,
+    accnum,
+    birthdate,
+    birthtime,
+    patsex,
+    patage
+)VALUES (
+    <@p name="p.patid"/>,
+    <@p name="p.patname"/>,
+    <@p name="p.accnum"/>,
+    <@p name="p.birthdate"/>,
+    <@p name="p.birthtime"/>,
+    <@p name="p.patsex"/>,
+    <@p name="p.patage"/>
+);

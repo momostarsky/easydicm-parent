@@ -2,6 +2,8 @@ package com.easydicm.storescp;
 
 
 import com.easydicm.storescp.services.IDicomSave;
+import com.google.common.io.ByteSource;
+import org.apache.commons.lang3.StringUtils;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
@@ -19,8 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -36,12 +38,12 @@ public class StoreScp extends BasicCStoreSCP {
     private static final String PART_EXT = ".part";
 
 
-    private IDicomSave IDicomSave;
+    private IDicomSave dicomSave;
 
-    public StoreScp(IDicomSave IDicomSave) {
+    public StoreScp(IDicomSave dicomSave) {
         super("*");
 
-        this.IDicomSave = IDicomSave;
+        this.dicomSave = dicomSave;
 
     }
 
@@ -130,42 +132,21 @@ public class StoreScp extends BasicCStoreSCP {
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
 
         sleep(as, receiveDelays);
+        ByteBuffer byteBuffer = null;
         try {
-
-            if (storageDir == null) {
-                rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-                return;
-            }
 
             String clientId = as.getProperty(GlobalConstant.AssicationClientId).toString();
             String appid = as.getProperty(GlobalConstant.AssicationApplicationId).toString();
             String cuid = rq.getString(Tag.AffectedSOPClassUID);
             String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
             String tsuid = pc.getTransferSyntax();
-
-            File file = new File(storageDir, iuid + PART_EXT);
-            String dir = storageDir.getAbsolutePath();
-            Path savePath = Paths.get( dir ,clientId,  iuid + ".dcm");
-            try {
-
-                storeTo(as, as.createFileMetaInformation(iuid, cuid, tsuid),
-                        data, file);
-
-
-                if (!savePath.getParent().toFile().exists()) {
-                    savePath.toFile().mkdirs();
-                }
-
-                renameTo(as, file, savePath.toFile());
-                IDicomSave.dicomFilePersist(savePath.toFile(), cuid, iuid, clientId, appid);
-                rsp.setInt(Tag.Status, VR.US, Status.Success);
-            } catch (Exception e) {
-                deleteFile(as, file);
-                deleteFile(as, savePath.toFile());
-                rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-                LOG.error(e.getMessage());
-            }
+            Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
+            byteBuffer = ByteBuffer.wrap(data.readAllBytes());
+            dicomSave.dicomFilePersist(byteBuffer, fmi, storageDir, clientId, appid, rsp);
         } finally {
+            if (byteBuffer != null) {
+                byteBuffer.clear();
+            }
             sleep(as, responseDelays);
         }
     }

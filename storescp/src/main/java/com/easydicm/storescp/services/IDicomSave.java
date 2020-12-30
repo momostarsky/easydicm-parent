@@ -1,6 +1,9 @@
 package com.easydicm.storescp.services;
 
+import org.dcm4che3.data.Attributes;
+
 import java.io.File;
+import java.nio.ByteBuffer;
 
 
 /**
@@ -9,14 +12,16 @@ import java.io.File;
 public interface IDicomSave {
 
 
-      /***
-       * DICOM File  Save To Persistent Storage
-       * @param dcmFile   DicomFile
-       * @param clsUid   SOpClassUID
-       * @param instUid   SopIntanceUID
-       * @param clientId   From Where  ClientId
-       * @param applicationId    Applicaiton Identity
-       */
-      void  dicomFilePersist(File dcmFile,String clsUid, String instUid,String clientId ,String applicationId) ;
+    /***
+     * DICOM File  Save To Persistent Storage
+     * @param dcmFile   DicomFile
+     * @param clsUid   SOpClassUID
+     * @param instUid   SopIntanceUID
+     * @param clientId   From Where  ClientId
+     * @param applicationId    Applicaiton Identity
+     */
+    void dicomFilePersist(ByteBuffer byteBuffer, Attributes fileMetaInfomation, File storageDir,
+                          String clientId,
+                          String applicationId, Attributes rsp);
 
 }

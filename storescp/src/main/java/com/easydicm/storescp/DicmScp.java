@@ -1,6 +1,7 @@
 package com.easydicm.storescp;
 
 import com.easydicm.storescp.services.IDicomSave;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.service.BasicCEchoSCP;
@@ -18,10 +19,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
+import java.util.concurrent.*;
 
 
 /**
@@ -29,7 +27,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 @Controller("DicmScp")
 public class DicmScp {
-
 
 
     static final org.slf4j.Logger LOG = LoggerFactory.getLogger(DicmScp.class);
@@ -40,18 +37,10 @@ public class DicmScp {
     private final AssociationHandler associationHandler = new RsaAssociationHandler();
     private final IDicomSave dicomSave;
 
-    private int port = 11112;
-    private String aeTitle = "EasySCP";
-    private String host = "127.0.0.1";
-    private boolean enableTls = false;
-    private boolean ServerStarted = false;
+
+    private volatile boolean serverStarted = false;
 
     private File storageDir;
-
-
-
-
-
 
 
     private void configureTransferCapability() throws IOException {
@@ -60,11 +49,9 @@ public class DicmScp {
                 TransferCapability.Role.SCP,
                 UID.ImplicitVRLittleEndian));
         {
-            Properties storageSOPClasses = CLIUtils.loadProperties(
-                    "resource:storage-sop-classes.properties",
-                    null);
-            addTransferCapabilities(storageSOPClasses, TransferCapability.Role.SCP, null);
-            addTransferCapabilities(storageSOPClasses, TransferCapability.Role.SCU, null);
+            Properties storageSopClasses = CLIUtils.loadProperties("resource:storage-sop-classes.properties", null);
+            addTransferCapabilities(storageSopClasses, TransferCapability.Role.SCP, null);
+            addTransferCapabilities(storageSopClasses, TransferCapability.Role.SCU, null);
         }
         {
             Properties p = CLIUtils.loadProperties("resource:retrieve-sop-classes.properties", null);
@@ -111,9 +98,9 @@ public class DicmScp {
 
 
     public DicmScp(@Autowired ApplicationArguments ctx,
-                   @Autowired  IDicomSave dicomSave
+                   @Autowired IDicomSave dicomSave
 
-                   ) {
+    ) {
 
         this.ctx = ctx;
         this.dicomSave = dicomSave;
@@ -121,70 +108,71 @@ public class DicmScp {
 
     }
 
-    final String OPT_PORT ="port";
-    final String OPT_AE ="ae";
-    final String OPT_HOST ="host";
-    final String OPT_STORAGEDIR ="storagedir";
+    final String OPT_PORT = "port";
+    final String OPT_AE = "ae";
+    final String OPT_HOST = "host";
+    final String OPT_STORAGEDIR = "storagedir";
 
     @PostConstruct
     public void start() {
         LOG.info("DicmSCP    start ....");
         try {
-
-            Properties dcmcfg = CLIUtils.loadProperties(
-                    "resource:scpsettings.properties",
-                    null);
-            aeTitle = dcmcfg.getProperty(OPT_AE);
-            port = Integer.parseInt(dcmcfg.getProperty(OPT_PORT));
-            host = dcmcfg.getProperty(OPT_HOST);
+            if (serverStarted) {
+                LOG.info("DicmSCP    started!");
+                return;
+            }
+            Properties dcmcfg = CLIUtils.loadProperties("resource:scpsettings.properties", null);
+            String aeTitle = dcmcfg.getProperty(OPT_AE);
+            int port = Integer.parseInt(dcmcfg.getProperty(OPT_PORT));
+            String host = dcmcfg.getProperty(OPT_HOST);
             storageDir = new File(dcmcfg.getProperty(OPT_STORAGEDIR));
-
             if (ctx != null) {
                 LOG.info(ctx.toString());
-
                 if (ctx.containsOption(OPT_PORT)) {
-
                     port = Integer.parseInt(ctx.getOptionValues(OPT_PORT).get(0));
                 }
                 if (ctx.containsOption(OPT_AE)) {
-
                     aeTitle = ctx.getOptionValues(OPT_AE).get(0);
                 }
                 if (ctx.containsOption(OPT_HOST)) {
-
                     host = ctx.getOptionValues(OPT_HOST).get(0);
                 }
                 if (ctx.containsOption(OPT_STORAGEDIR)) {
-
                     storageDir = new File(ctx.getOptionValues(OPT_STORAGEDIR).get(0));
                 }
             }
-
             LOG.info("DicmSCP Setting is  {" + aeTitle + "," + host + "," + port + "}");
-
-
             conn.setReceivePDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setSendPDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setMaxOpsInvoked(0);
             conn.setMaxOpsPerformed(0);
             conn.setHostname(host);
             conn.setPort(port);
-
             ae.setAETitle(aeTitle);
             ae.setAssociationAcceptor(true);
             ae.addConnection(conn);
             configureTransferCapability();
-
             device.addConnection(conn);
             device.addApplicationEntity(ae);
             device.setDimseRQHandler(createServiceRegistry());
             device.setAssociationHandler(associationHandler);
-            ExecutorService executorService = Executors.newCachedThreadPool();
+            int corePoolSize = Runtime.getRuntime().availableProcessors();
+            int maxPoolSize = corePoolSize * 10;
+            long keepAliveTime = 60L;
+            ThreadFactory namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("DicmQRSCP-pool-%d").build();
+            ExecutorService executorPools = new ThreadPoolExecutor(
+                    corePoolSize,
+                    maxPoolSize,
+                    keepAliveTime,
+                    TimeUnit.SECONDS,
+                    new SynchronousQueue<>(), namedThreadFactory,
+                    new ThreadPoolExecutor.CallerRunsPolicy()
+            );
             ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
             device.setScheduledExecutor(scheduledExecutorService);
-            device.setExecutor(executorService);
+            device.setExecutor(executorPools);
             device.bindConnections();
-            ServerStarted = true;
+            serverStarted = true;
             LOG.info("DicmSCP    start success !");
 
         } catch (Exception ex) {
@@ -202,14 +190,21 @@ public class DicmScp {
     @PreDestroy
     public void clear() {
         LOG.info("DicmSCP    remove connections ....");
-        List<Connection> connections = ae.getConnections();
-        if (connections.size() > 0) {
-
+        try {
+            device.waitForNoOpenConnections();
+        } catch (Exception ex) {
+            LOG.info("Stop DicmQRSCP:" + ex.getMessage());
+        }
+        List<Connection> connections = device.listConnections();
+        if (connections != null && connections.size() > 0) {
             for (Connection cn : connections) {
                 if (cn != null) {
-                    device.removeConnection(cn);
+                    try {
+                        device.removeConnection(cn);
+                    } catch (Exception ex) {
+                        LOG.info(ex.getMessage());
+                    }
                 }
-
             }
         }
         device.removeApplicationEntity(ae);

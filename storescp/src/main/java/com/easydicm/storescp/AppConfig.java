@@ -8,6 +8,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 
 import javax.sql.DataSource;
@@ -25,9 +26,8 @@ public class AppConfig {
 
     @SneakyThrows
     @Bean
+
     public DataSource getDataSource() {
-
-
         Properties prop = new Properties();
         InputStream in = Resources.getResource("jdbc.properties").openStream();
         prop.load(in);
