@@ -10,8 +10,8 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 /**
  * @author dhz
  */
-@SpringBootApplication(scanBasePackages = "com.easydicm.storescp" )
-@MapperScan("com.easydicm.scpdb")
+@SpringBootApplication(scanBasePackages ={ "com.easydicm.storescp" })
+@MapperScan( basePackages = {"com.easydicm.scpdb"})
 public class StorescpApplication implements ApplicationRunner {
 
     public static void main(String[] args) {

@@ -1,8 +1,12 @@
 package com.easydicm.storescp.services;
 
+import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.dcm4che3.data.Attributes;
+import org.dcm4che3.net.PDVInputStream;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 
@@ -20,8 +24,8 @@ public interface IDicomSave {
      * @param clientId   From Where  ClientId
      * @param applicationId    Applicaiton Identity
      */
-    void dicomFilePersist(ByteBuffer byteBuffer, Attributes fileMetaInfomation, File storageDir,
+    void dicomFilePersist(final PDVInputStream data, Attributes fileMetaInfomation, File storageDir,
                           String clientId,
-                          String applicationId, Attributes rsp);
+                          String applicationId, Attributes rsp) throws IOException, RemotingException, MQClientException, InterruptedException;
 
 }

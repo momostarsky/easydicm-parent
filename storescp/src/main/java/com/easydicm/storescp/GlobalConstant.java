@@ -19,4 +19,9 @@ public abstract class GlobalConstant {
      */
     public static final String AssicationApplicationId = "ApplicationId";
 
+    /***
+     * 本次链接的SessionId
+     */
+    public  static  final  String AssicationSessionId = "SessionId";
+
 }

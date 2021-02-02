@@ -26,6 +26,8 @@ public class RsaAssociationHandler extends AssociationHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RsaAssociationHandler.class);
 
+    private boolean withRsaCheck;
+
     /***
      * RSA 验证
      */
@@ -33,6 +35,10 @@ public class RsaAssociationHandler extends AssociationHandler {
         super();
     }
 
+    public void setWithRsa(boolean rsa) {
+        withRsaCheck = rsa;
+
+    }
 
     protected void rsaCheck(String remoteIdp, Association as, AAssociateRQ rq) throws AAssociateRJ {
         Collection<ExtendedNegotiation> extMsg = rq.getExtendedNegotiations();
@@ -107,6 +113,7 @@ public class RsaAssociationHandler extends AssociationHandler {
 
         as.setProperty(GlobalConstant.AssicationClientId, clientId);
         as.setProperty(GlobalConstant.AssicationApplicationId, applicationId);
+        as.setProperty(GlobalConstant.AssicationSessionId, UUID.randomUUID().toString());
 
     }
 
@@ -123,14 +130,21 @@ public class RsaAssociationHandler extends AssociationHandler {
         String remoteIdp = hold.getAddress().getHostAddress();
         LOG.info(String.format("remotePort:%d", hold.getPort()));
         LOG.info(String.format("remoteIpAddress:%s", remoteIdp));
-        rsaCheck(remoteIdp, as, rq);
-
+        if (withRsaCheck) {
+            LOG.info("开启RSA验证！");
+            rsaCheck(remoteIdp, as, rq);
+        } else {
+            LOG.info("关闭RSA验证！");
+        }
+        String sessionUid= UUID.randomUUID().toString();
+        as.setProperty(GlobalConstant.AssicationSessionId,sessionUid);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
     @Override
     protected void onClose(Association as) {
-        LOG.warn("========makeAAssociateAC CLOSED:=============" + as.getCallingAET());
+        LOG.warn("========{}  CLOSED With SessionId={} ", as.getCallingAET(), as.getProperty(GlobalConstant.AssicationSessionId));
+        as.clearProperty(GlobalConstant.AssicationSessionId);
         super.onClose(as);
     }
 }

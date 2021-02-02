@@ -1,5 +1,7 @@
 package com.easydicm.storescp.services;
 
+import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.dcm4che3.data.Attributes;
 
 /**
@@ -14,5 +16,5 @@ public interface IMessageQueueWriter {
      * @param applicationId  scuApplication Id
      * @param attributesWithoutPixelData   Dicom Attributes Without PxielData
      */
-    void write(String clientId, String applicationId, Attributes attributesWithoutPixelData);
+    void write(String clientId, String applicationId,String transferSyntax, Attributes attributesWithoutPixelData) throws RemotingException, MQClientException, InterruptedException;
 }

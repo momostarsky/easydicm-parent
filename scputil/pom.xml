@@ -12,6 +12,7 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-core</artifactId>
         </dependency>
+
     </dependencies>
     <parent>
         <artifactId>easydicm-parent</artifactId>

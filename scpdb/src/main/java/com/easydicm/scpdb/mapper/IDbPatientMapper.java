@@ -1,7 +1,10 @@
 package com.easydicm.scpdb.mapper;
 
 import com.easydicm.scpdb.entities.Patient;
-import org.apache.ibatis.annotations.*;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Lang;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.mybatis.scripting.freemarker.FreeMarkerLanguageDriver;
 
 /**

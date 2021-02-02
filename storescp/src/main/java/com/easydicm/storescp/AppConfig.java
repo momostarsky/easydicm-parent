@@ -2,6 +2,7 @@ package com.easydicm.storescp;
 
 import com.google.common.io.Resources;
 import lombok.SneakyThrows;
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.annotation.MapperScan;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.io.InputStream;
@@ -21,7 +23,7 @@ import java.util.ResourceBundle;
  * @author dhz
  */
 @Configuration
-@MapperScan(basePackages = { "com.easydicm.scpdb.mapper"} )
+@MapperScan(basePackages = { "com.easydicm.scpdb.mapper"} , annotationClass = Mapper.class)
 public class AppConfig {
 
     @SneakyThrows

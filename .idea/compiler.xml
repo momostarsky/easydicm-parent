@@ -10,12 +10,17 @@
         <module name="storescp" />
         <module name="scpdb" />
         <module name="scputil" />
+        <module name="scpmq" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="scpmq" target="11" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="scpdb" options="-parameters" />
+      <module name="scpmq" options="-parameters" />
       <module name="scputil" options="-parameters" />
       <module name="storescp" options="-parameters" />
     </option>
