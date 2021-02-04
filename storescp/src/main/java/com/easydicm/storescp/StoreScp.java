@@ -2,7 +2,10 @@ package com.easydicm.storescp;
 
 
 import com.easydicm.storescp.services.IDicomSave;
+import com.easydicm.storescp.services.StoreInfomation;
 import com.google.common.io.ByteSource;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import freemarker.core.Environment;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.remoting.exception.RemotingException;
@@ -31,6 +34,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.*;
 
 
 /**
@@ -41,25 +45,36 @@ import java.nio.file.Paths;
 public class StoreScp extends BasicCStoreSCP {
 
     static final Logger LOG = LoggerFactory.getLogger(StoreScp.class);
-    private static final String PART_EXT = ".part";
 
 
     private IDicomSave dicomSave;
 
 
-    public StoreScp(IDicomSave dicomSave ) {
+    private final ExecutorService executorPools;
+    private final ThreadFactory namedThreadFactory;
+
+    public StoreScp(IDicomSave dicomSave) {
         super("*");
 
-
-
         this.dicomSave = dicomSave;
+        int corePoolSize = Runtime.getRuntime().availableProcessors();
+        int maxPoolSize = 10 * corePoolSize;
+        long keepAliveTime = 10L;
+
+        namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("StoreScp-pool-%d").build();
+        executorPools = new ThreadPoolExecutor(
+                corePoolSize,
+                maxPoolSize,
+                keepAliveTime,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(), namedThreadFactory,
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
 
     }
 
-    private AttributesFormat filePathFormat;
 
-    private int[] receiveDelays;
-    private int[] responseDelays;
     private File storageDir;
 
     private void sleep(Association as, int[] delays) {
@@ -74,47 +89,6 @@ public class StoreScp extends BasicCStoreSCP {
         }
     }
 
-    private void storeTo(Association as, Attributes fmi,
-                         PDVInputStream data, File file) throws IOException {
-        LOG.info("{}: M-WRITE {}", as, file);
-        file.getParentFile().mkdirs();
-        DicomOutputStream out = new DicomOutputStream(file);
-        try {
-            out.writeFileMetaInformation(fmi);
-            data.copyTo(out);
-        } finally {
-            SafeClose.close(out);
-        }
-    }
-
-    private static void renameTo(Association as, File from, File dest)
-            throws IOException {
-        LOG.info("{}: M-RENAME {} to {}", as, from, dest);
-        if (!dest.getParentFile().mkdirs()) {
-            dest.delete();
-        }
-        if (!from.renameTo(dest)) {
-            throw new IOException("Failed to rename " + from + " to " + dest);
-        }
-    }
-
-    private static Attributes parse(File file) throws IOException {
-        DicomInputStream in = new DicomInputStream(file);
-        try {
-            in.setIncludeBulkData(DicomInputStream.IncludeBulkData.NO);
-            return in.readDataset(-1, Tag.PixelData);
-        } finally {
-            SafeClose.close(in);
-        }
-    }
-
-    private static void deleteFile(Association as, File file) {
-        if (file.delete()) {
-            LOG.info("{}: M-DELETE {}", as, file);
-        } else {
-            LOG.warn("{}: M-DELETE {} failed!", as, file);
-        }
-    }
 
     public void setStorageDirectory(File storageDir) {
         if (storageDir != null) {
@@ -123,78 +97,31 @@ public class StoreScp extends BasicCStoreSCP {
         this.storageDir = storageDir;
     }
 
-    public void setStorageFilePathFormat(String pattern) {
-        this.filePathFormat = new AttributesFormat(pattern);
-    }
-
-
-    public void setReceiveDelays(int[] receiveDelays) {
-        this.receiveDelays = receiveDelays;
-    }
-
-    public void setResponseDelays(int[] responseDelays) {
-        this.responseDelays = responseDelays;
-    }
-
-
-    public static long fileWrite(String filePath, byte[] content, int index) {
-        File file = new File(filePath);
-        RandomAccessFile randomAccessTargetFile;
-        //  操作系统提供的一个内存映射的机制的类
-        MappedByteBuffer map;
-        try {
-            randomAccessTargetFile = new RandomAccessFile(file, "rw");
-            FileChannel targetFileChannel = randomAccessTargetFile.getChannel();
-            map = targetFileChannel.map(FileChannel.MapMode.READ_WRITE, 0, (long) 1024 * 1024 * 1024);
-            map.position(index);
-            map.put(content);
-            return map.position();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-        }
-        return 0L;
-    }
-
 
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
 
-        sleep(as, receiveDelays);
 
-        try {
-
-            String appid ="DcmQRSCP";
-            String clientId="HZJPDEV";
-            if( as.containsProperty(GlobalConstant.AssicationApplicationId)){
-                  appid = as.getProperty(GlobalConstant.AssicationApplicationId).toString();
-            }
-            if( as.containsProperty(GlobalConstant.AssicationClientId)) {
-                clientId = as.getProperty(GlobalConstant.AssicationClientId).toString();
-            }
-
-
-            String cuid = rq.getString(Tag.AffectedSOPClassUID);
-            String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
-            String tsuid = pc.getTransferSyntax();
-            Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
-
-            LOG.info("SaveFile in SessionUID:{}", as.getProperty(GlobalConstant.AssicationSessionId));
-
-            dicomSave.dicomFilePersist(data, fmi, storageDir, clientId, appid, rsp);
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-        } catch (RemotingException e) {
-            e.printStackTrace();
-            rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-        } catch (MQClientException e) {
-            e.printStackTrace();
-            rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-        } finally {
-            sleep(as, responseDelays);
-
+        String appid = "DicmQRSCP";
+        String clientId = "HZJPDEV";
+        if (as.containsProperty(GlobalConstant.AssicationApplicationId)) {
+            appid = as.getProperty(GlobalConstant.AssicationApplicationId).toString();
         }
+        if (as.containsProperty(GlobalConstant.AssicationClientId)) {
+            clientId = as.getProperty(GlobalConstant.AssicationClientId).toString();
+        }
+        String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
+        String cuid = rq.getString(Tag.AffectedSOPClassUID);
+        String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
+        String tsuid = pc.getTransferSyntax();
+        Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
+        final byte[] buffer = data.readAllBytes();
+        final StoreInfomation storeInfomation = new StoreInfomation(appid, clientId, sessionId, fmi);
+        // 提交到线程池中执行
+        dicomSave.dicomFilePersist(storageDir, buffer, storeInfomation);
+        rsp.setInt(Tag.Status, VR.US, Status.Success);
+
     }
+
+
 }

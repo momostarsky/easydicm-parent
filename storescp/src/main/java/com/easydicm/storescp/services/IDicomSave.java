@@ -17,15 +17,15 @@ public interface IDicomSave {
 
 
     /***
-     * DICOM File  Save To Persistent Storage
-     * @param dcmFile   DicomFile
-     * @param clsUid   SOpClassUID
-     * @param instUid   SopIntanceUID
-     * @param clientId   From Where  ClientId
-     * @param applicationId    Applicaiton Identity
+     * 保存文件到磁盘
+     * @param storageDir
+     * @param buffer
+     * @param storeInfomation
+     * @throws IOException
+     * @throws RemotingException
+     * @throws MQClientException
+     * @throws InterruptedException
      */
-    void dicomFilePersist(final PDVInputStream data, Attributes fileMetaInfomation, File storageDir,
-                          String clientId,
-                          String applicationId, Attributes rsp) throws IOException, RemotingException, MQClientException, InterruptedException;
+    void dicomFilePersist(final File storageDir, final byte[] buffer, StoreInfomation storeInfomation);
 
 }

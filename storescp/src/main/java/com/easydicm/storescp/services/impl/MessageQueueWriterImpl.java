@@ -2,6 +2,7 @@ package com.easydicm.storescp.services.impl;
 
 import com.easydicm.storescp.services.IMessageQueueWriter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.client.producer.SendCallback;
@@ -15,10 +16,10 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -35,6 +36,7 @@ public class MessageQueueWriterImpl extends BaseImpl implements IMessageQueueWri
     DefaultMQProducer producer;
 
     String topic = "DicmQRSCP";
+    File topicSave;
 
     public MessageQueueWriterImpl() {
         super();
@@ -54,6 +56,8 @@ public class MessageQueueWriterImpl extends BaseImpl implements IMessageQueueWri
         // 启动Producer实例
         producer.start();
         producer.setRetryTimesWhenSendAsyncFailed(0);
+        topicSave = new File(String.format("./%s"), topic);
+        topicSave.mkdirs();
         log.info("Start MQProduct Success:{}", producerGroup, nameServerAddr);
     }
 
@@ -67,34 +71,63 @@ public class MessageQueueWriterImpl extends BaseImpl implements IMessageQueueWri
 
 
     @Override
-    public void write(String clientId, String applicationId, String transferSyntax, Attributes attributesWithoutPixelData) throws RemotingException, MQClientException, InterruptedException {
+    public void write(String clientId, String applicationId, String transferSyntax, Attributes attributesWithoutPixelData) {
 
 
         LOG.info("MessageQueue Publish Message  :" + clientId + "->" + applicationId);
 
-        String patientId = attributesWithoutPixelData.getString(Tag.PatientID );
+        String patientId = attributesWithoutPixelData.getString(Tag.PatientID);
         String sopInstUid = attributesWithoutPixelData.getString(Tag.SOPInstanceUID);
-        String msgKey = String.format("%s-%s", clientId, patientId );
+        String msgKey = String.format("%s-%s", clientId, patientId);
         byte[] data = sopInstUid.getBytes(StandardCharsets.UTF_8);
-        Message message = new Message(topic, transferSyntax,  msgKey, data);
-
+        File msgFile = new File(String.format("./%s/%s.msg", topic, sopInstUid));
+        try {
+            ArrayList<String> arr = new ArrayList<>(5);
+            arr.add(clientId);
+            arr.add(applicationId);
+            arr.add(patientId);
+            arr.add(sopInstUid);
+            arr.add(transferSyntax);
+            String msgContent = String.join("|", arr);
+            FileUtils.write(msgFile, msgContent, StandardCharsets.UTF_8);
+        } catch (IOException ioException) {
+            LOG.error("{}", ioException.getMessage());
+        }
+        Message message = new Message(topic, transferSyntax, msgKey, data);
         message.setWaitStoreMsgOK(true);
-       // final CountDownLatch countDownLatch = new CountDownLatch(1);
-        producer.send(message, new SendCallback() {
-            @Override
-            public void onSuccess(SendResult sendResult) {
-                log.info("{}- SendMessage OK",sopInstUid );
-              //  countDownLatch.countDown();
-            }
 
-            @Override
-            public void onException(Throwable e) {
-                log.info("{}- SendMessage Error ",e.getMessage() );
-             //   countDownLatch.countDown();
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        try {
+            producer.send(message, new SendCallback() {
+                @Override
+                public void onSuccess(SendResult sendResult) {
+                    log.info("{}- SendMessage OK", sopInstUid);
+                    msgFile.delete();
+                    countDownLatch.countDown();
+                }
 
-            }
-        });
-      //  countDownLatch.await(100, TimeUnit.MILLISECONDS);
+                @Override
+                public void onException(Throwable e) {
+                    log.info("{}- SendMessage Error ", e.getMessage());
+                    countDownLatch.countDown();
+                }
+            });
+
+        } catch (MQClientException e) {
+            log.info(" 消息发送失败,客户端错误:{}",e.getMessage());
+            countDownLatch.countDown();
+        } catch (RemotingException e) {
+            log.info(" 消息发送失败,远程访问错误:{}",e.getMessage());
+            countDownLatch.countDown();
+        } catch (InterruptedException e) {
+            log.info(" 消息发送失败,调用中断:{}",e.getMessage());
+            countDownLatch.countDown();
+        }
+        try {
+            countDownLatch.await(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            log.info(" 消息发送失败,超时:{}",e.getMessage());
+        }
 
 
     }

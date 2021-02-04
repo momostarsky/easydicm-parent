@@ -16,5 +16,5 @@ public interface IMessageQueueWriter {
      * @param applicationId  scuApplication Id
      * @param attributesWithoutPixelData   Dicom Attributes Without PxielData
      */
-    void write(String clientId, String applicationId,String transferSyntax, Attributes attributesWithoutPixelData) throws RemotingException, MQClientException, InterruptedException;
+    void write(String clientId, String applicationId,String transferSyntax, Attributes attributesWithoutPixelData) ;
 }

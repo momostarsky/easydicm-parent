@@ -5,8 +5,10 @@ import com.easydicm.scpdb.mapper.IDbPatientMapper;
 import com.easydicm.storescp.services.IDicomSave;
 import com.easydicm.storescp.services.IMessageQueueWriter;
 import com.easydicm.storescp.services.IStorageWriter;
+import com.easydicm.storescp.services.StoreInfomation;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.google.common.io.ByteSource;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.buffer.ByteBufInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.exception.MQClientException;
@@ -29,6 +31,8 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 
 /**
@@ -46,55 +50,62 @@ public class DicomSaveImpl extends BaseImpl implements IDicomSave {
     private IMessageQueueWriter messageQueueWriter;
 
 
+    private final ExecutorService executorPools;
+    private final ThreadFactory namedThreadFactory;
+
     public DicomSaveImpl(@Autowired IDbPatientMapper dbPatientMapper, @Autowired IStorageWriter storageWriter, @Autowired IMessageQueueWriter messageQueueWriter) {
 
         super();
         this.dbPatientMapper = dbPatientMapper;
         this.storageWriter = storageWriter;
         this.messageQueueWriter = messageQueueWriter;
+
+
+        int corePoolSize = Runtime.getRuntime().availableProcessors();
+        int maxPoolSize = 10 * corePoolSize;
+        long keepAliveTime = 10L;
+
+        namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("StoreScp-pool-%d").build();
+        executorPools = new ThreadPoolExecutor(
+                corePoolSize,
+                maxPoolSize,
+                keepAliveTime,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(), namedThreadFactory,
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
+
     }
 
     @Override
-    public void dicomFilePersist(final PDVInputStream data, Attributes fileMetaInfomation,
-                                 File storageDir,
-                                 String clientId,
-                                 String applicationId, Attributes rsp) throws IOException, RemotingException, MQClientException, InterruptedException {
+    public void dicomFilePersist(final File storageDir, final byte[] buffer, StoreInfomation storeInfomation) {
 
-            ByteBuffer byteBuffer = ByteBuffer.wrap(data.readAllBytes());
-            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(byteBuffer.array());
-                 DicomInputStream dis = new DicomInputStream(inputStream)){
-                Attributes attribs = dis.readDataset(-1, Tag.PixelData);
-                String patId = attribs.getString(Tag.PatientID);
-                String studyUid = attribs.getString(Tag.StudyInstanceUID);
-                String serisUid = attribs.getString(Tag.SeriesInstanceUID);
-                String sopUid = attribs.getString(Tag.SOPInstanceUID);
-                if (StringUtils.isEmpty(patId)
-                        || StringUtils.isEmpty(studyUid)
-                        || StringUtils.isEmpty(serisUid)
-                        || StringUtils.isEmpty(sopUid)
+        executorPools.submit(() -> {
+            String iuid = storeInfomation.getFileMetaInfomation().getString(Tag.AffectedSOPInstanceUID);
+            String ts = storeInfomation.getFileMetaInfomation().getString(Tag.TransferSyntaxUID);
+            Path dcmpath = Paths.get(storageDir.getAbsolutePath(), storeInfomation.getClientId(), iuid + ".dcm");
+            boolean ok = true;
+            if (!dcmpath.getParent().toFile().exists()) {
+                ok = dcmpath.getParent().toFile().mkdirs();
+            }
+            if (ok) {
+                try (DicomInputStream dicomInputStream = new DicomInputStream(new ByteArrayInputStream(buffer));
+                     DicomOutputStream dicomOutputStream = new DicomOutputStream(dcmpath.toFile())
                 ) {
-                    rsp.setInt(Tag.Status, VR.US, Status.MissingAttribute);
-                    return;
-                }
-                LOG.info("PatientId -{}, StudyUID-{}, SeriesUid={}, SopInstUID={}", patId, studyUid, serisUid, sopUid);
-                Path dcmpath = Paths.get(storageDir.getAbsolutePath(), clientId, patId, studyUid, serisUid, sopUid + ".dcm");
-                if (!dcmpath.getParent().toFile().exists()) {
-                    if (!dcmpath.getParent().toFile().mkdirs()) {
-                        rsp.setInt(Tag.Status, VR.US, Status.ProcessingFailure);
-                        return;
-                    }
-                }
-                try (DicomOutputStream dicomOutputStream = new DicomOutputStream(dcmpath.toFile())) {
-                    dicomOutputStream.writeFileMetaInformation(fileMetaInfomation);
-                    dicomOutputStream.write(byteBuffer.array());
+                    Attributes ds = dicomInputStream.readDataset(-1, Tag.PixelData);
+                    dicomOutputStream.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
+                    dicomOutputStream.write(buffer);
                     dicomOutputStream.flush();
+                    LOG.info("DICOM文件写入磁盘: {}",  dcmpath);
+                    messageQueueWriter.write(storeInfomation.getClientId(), storeInfomation.getAppId(), ts, ds);
+                } catch (IOException e) {
+                    LOG.error("DICOM文件写入磁盘失败:{}", e);
                 }
-                messageQueueWriter.write(clientId, applicationId, fileMetaInfomation.getString(Tag.TransferSyntaxUID), attribs);
-                rsp.setInt(Tag.Status, VR.US, Status.Success);
+            } else {
+                LOG.info("创建存储目录失败：{}", dcmpath);
             }
-            finally {
-                byteBuffer.clear();
-            }
+        });
 
 
     }
