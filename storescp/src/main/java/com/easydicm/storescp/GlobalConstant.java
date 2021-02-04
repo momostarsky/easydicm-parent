@@ -24,4 +24,15 @@ public abstract class GlobalConstant {
      */
     public  static  final  String AssicationSessionId = "SessionId";
 
+
+    /***
+     * 本次连接的Map 对象
+     */
+    public  static  final  String AssicationSessionData = "SessionData";
+
+    /***
+     * 图像数据位置信息
+     */
+    public  static  final  String AssicationSopPostion = "SopPostion";
+
 }

@@ -2,7 +2,16 @@ package com.easydicm.storescp;
 
 
 import com.easydicm.scputil.RSAUtil2048;
+import com.easydicm.storescp.services.StoreInfomation;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.sun.jna.Platform;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.time.StopWatch;
+import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
+import org.dcm4che3.io.DicomInputStream;
+import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
 import org.dcm4che3.net.pdu.*;
@@ -10,13 +19,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 
 /**
@@ -27,16 +43,50 @@ public class RsaAssociationHandler extends AssociationHandler {
     private static final Logger LOG = LoggerFactory.getLogger(RsaAssociationHandler.class);
 
     private boolean withRsaCheck;
+    private File storageDir;
+    private File tmpDir;
+    private final ExecutorService executorPools;
+    private final ThreadFactory namedThreadFactory;
 
     /***
      * RSA 验证
      */
-    public RsaAssociationHandler() {
+    public RsaAssociationHandler( ) {
         super();
+
+        int corePoolSize = Runtime.getRuntime().availableProcessors();
+        int maxPoolSize = 10 * corePoolSize;
+        long keepAliveTime = 10L;
+
+        namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("AsScp-pool-%d").build();
+        executorPools = new ThreadPoolExecutor(
+                corePoolSize,
+                maxPoolSize,
+                keepAliveTime,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(), namedThreadFactory,
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
     }
 
     public void setWithRsa(boolean rsa) {
         withRsaCheck = rsa;
+
+    }
+
+
+    public void setStorageDir(File storageDir) {
+        if (!storageDir.exists()) {
+            storageDir.mkdirs();
+        }
+        this.storageDir = storageDir;
+
+    }
+
+    public void setTempDir(File tmpDir) {
+
+        this.tmpDir = tmpDir;
 
     }
 
@@ -136,15 +186,74 @@ public class RsaAssociationHandler extends AssociationHandler {
         } else {
             LOG.info("关闭RSA验证！");
         }
-        String sessionUid= UUID.randomUUID().toString();
-        as.setProperty(GlobalConstant.AssicationSessionId,sessionUid);
+        String sessionUid = UUID.randomUUID().toString();
+        as.setProperty(GlobalConstant.AssicationSessionId, sessionUid);
+        Path data = Paths.get(tmpDir.getAbsolutePath(), sessionUid + ".data");
+        RandomAccessFile mapFile = new RandomAccessFile(data.toFile(), "rw");
+        MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, Integer.MAX_VALUE - 1024);
+
+        as.setProperty(GlobalConstant.AssicationSessionData, mapBuffer);
+        HashMap<Integer, StoreInfomation> rec = new HashMap<Integer, StoreInfomation>(100);
+        as.setProperty(GlobalConstant.AssicationSopPostion, rec);
         return super.makeAAssociateAC(as, rq, userIdentity);
+    }
+
+    protected static void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File rootDir, final  File tmpDir) {
+        StopWatch sw = new StopWatch();
+        sw.start();
+        int allItems = pos.size();
+        mapBuffer.flip();
+        ArrayList<Integer> list = new ArrayList<>(pos.keySet());
+        list.sort(Comparator.comparingInt(o -> o));
+        ArrayList<StoreInfomation> values = new ArrayList<>(pos.values());
+        Optional<StoreInfomation> maxsz = values.stream().max(Comparator.comparingInt(StoreInfomation::getDataLength));
+        byte[] buffer = new byte[maxsz.get().getDataLength()];
+        Iterator<Integer> iterator = list.iterator();
+        //迭代排序后的key的list
+        while ((iterator.hasNext())) {
+            Integer spx = iterator.next();
+            StoreInfomation storeInfomation = pos.get(spx);
+            Integer sz = storeInfomation.getDataLength();
+            mapBuffer.position(spx);
+            mapBuffer.get(buffer, 0, sz);
+            ByteArrayInputStream arrayInputStream = new ByteArrayInputStream(buffer, 0, sz);
+            try (DicomInputStream dis = new DicomInputStream(arrayInputStream)) {
+                Attributes attr = dis.readDataset(-1, Tag.PixelData);
+                String patId = attr.getString(Tag.PatientID, "");
+                String stdId = attr.getString(Tag.StudyInstanceUID, "");
+                String serId = attr.getString(Tag.SeriesInstanceUID, "");
+                String sopId = attr.getString(Tag.SOPInstanceUID, "");
+
+                Path save = Paths.get(rootDir.getAbsolutePath(), patId, stdId, serId, sopId + ".dcm");
+                if (!save.getParent().toFile().exists()) {
+                    save.getParent().toFile().mkdirs();
+                }
+                try (DicomOutputStream dos = new DicomOutputStream(save.toFile())) {
+                    dos.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
+                    dos.write(buffer, 0, sz);
+                    dos.flush();
+                }
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
+        }
+        mapBuffer.clear();
+        try {
+            Path data = Paths.get(tmpDir.getAbsolutePath(), sessionId + ".data");
+            FileUtils.forceDelete(data.toFile());
+        } catch (IOException ioException) {
+        }
+        sw.stop();
+        LOG.debug("Generate Dicom Files :{} with {} MS", allItems, sw.getTime(TimeUnit.MILLISECONDS));
     }
 
     @Override
     protected void onClose(Association as) {
-        LOG.warn("========{}  CLOSED With SessionId={} ", as.getCallingAET(), as.getProperty(GlobalConstant.AssicationSessionId));
-        as.clearProperty(GlobalConstant.AssicationSessionId);
+        final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
+        final HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
+        final File rootDir = this.storageDir;
+        executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, rootDir,tmpDir));
         super.onClose(as);
     }
 }

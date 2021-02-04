@@ -41,6 +41,7 @@ public class DicmScp {
     private volatile boolean serverStarted = false;
 
     private File storageDir;
+    private File tmpDir;
     private Boolean withRsa;
 
 
@@ -80,8 +81,7 @@ public class DicmScp {
     protected DicomServiceRegistry createServiceRegistry() {
         DicomServiceRegistry serviceRegistry = new DicomServiceRegistry();
         serviceRegistry.addDicomService(new BasicCEchoSCP());
-        StoreScp scp = new StoreScp(this.dicomSave );
-        scp.setStorageDirectory(storageDir);
+        StoreScp scp = new StoreScp(this.dicomSave  );
         serviceRegistry.addDicomService(scp);
 
         StorageCommitmentScp stgCmt = new StorageCommitmentScp(this.device);
@@ -114,7 +114,7 @@ public class DicmScp {
     final String OPT_HOST = "host";
     final String OPT_STORAGEDIR = "storagedir";
     final String OPT_RSA= "rsa";
-
+    final String OPT_CACHE="tempdir";
 
 
     @PostConstruct
@@ -131,6 +131,7 @@ public class DicmScp {
             String host = dcmcfg.getProperty(OPT_HOST);
             withRsa = Boolean.parseBoolean( dcmcfg.getProperty(OPT_RSA));
             storageDir = new File(dcmcfg.getProperty(OPT_STORAGEDIR));
+            tmpDir = new File(dcmcfg.getProperty(OPT_CACHE));
             if (ctx != null) {
                 LOG.info(ctx.toString());
                 if (ctx.containsOption(OPT_PORT)) {
@@ -148,8 +149,12 @@ public class DicmScp {
                 if (ctx.containsOption(OPT_RSA)) {
                     withRsa = Boolean.parseBoolean( ctx.getOptionValues(OPT_RSA).get(0));
                 }
+                if (ctx.containsOption(OPT_CACHE)) {
+                    tmpDir = new File(ctx.getOptionValues(OPT_CACHE).get(0));
+                }
             }
             LOG.info("DicmSCP Setting is  {" + aeTitle + "," + host + "," + port + "}");
+            LOG.warn("DicomSCP  Started :{}", aeTitle);
             conn.setReceivePDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setSendPDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setMaxOpsInvoked(0);
@@ -166,11 +171,13 @@ public class DicmScp {
 
             RsaAssociationHandler  handler = (RsaAssociationHandler) associationHandler;
             handler.setWithRsa(withRsa);
+            handler.setStorageDir(storageDir);
+            handler.setTempDir(tmpDir);
             device.setAssociationHandler(handler);
             int corePoolSize = Runtime.getRuntime().availableProcessors();
             int maxPoolSize = corePoolSize * 10;
             long keepAliveTime = 60L;
-            ThreadFactory namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("DicmQRSCP-pool-%d").build();
+            ThreadFactory namedThreadFactory = new ThreadFactoryBuilder().setNameFormat(" DicmQRSCP-pool-%d").build();
             ExecutorService executorPools = new ThreadPoolExecutor(
                     corePoolSize,
                     maxPoolSize,

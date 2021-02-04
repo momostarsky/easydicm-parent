@@ -56,7 +56,7 @@ public class MessageQueueWriterImpl extends BaseImpl implements IMessageQueueWri
         // 启动Producer实例
         producer.start();
         producer.setRetryTimesWhenSendAsyncFailed(0);
-        topicSave = new File(String.format("./%s"), topic);
+        topicSave = new File(String.format("./%s",topic));
         topicSave.mkdirs();
         log.info("Start MQProduct Success:{}", producerGroup, nameServerAddr);
     }

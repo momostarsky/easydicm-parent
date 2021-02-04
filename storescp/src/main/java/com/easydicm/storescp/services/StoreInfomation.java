@@ -3,32 +3,23 @@ package com.easydicm.storescp.services;
 import org.dcm4che3.data.Attributes;
 
 public class StoreInfomation {
-    private final String appId;
-    private final String clientId;
-    private final String sessionId;
+
     private final Attributes fileMetaInfomation;
+    private final int     dataLength;
 
-    public StoreInfomation(String appId, String clientId, String sessionId, Attributes fileMetaInfomation) {
+    public StoreInfomation( Attributes fileMetaInfomation,int dataLength) {
 
-        this.appId = appId;
-        this.clientId = clientId;
-        this.sessionId = sessionId;
         this.fileMetaInfomation = fileMetaInfomation;
+        this.dataLength = dataLength;
     }
 
     public Attributes getFileMetaInfomation() {
         return fileMetaInfomation;
     }
 
-    public String getClientId() {
-        return clientId;
-    }
 
-    public String getAppId() {
-        return appId;
-    }
 
-    public String getSessionId() {
-        return sessionId;
+    public int getDataLength() {
+        return dataLength;
     }
 }

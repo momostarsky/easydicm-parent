@@ -82,29 +82,29 @@ public class DicomSaveImpl extends BaseImpl implements IDicomSave {
     public void dicomFilePersist(final File storageDir, final byte[] buffer, StoreInfomation storeInfomation) {
 
         executorPools.submit(() -> {
-            String iuid = storeInfomation.getFileMetaInfomation().getString(Tag.AffectedSOPInstanceUID);
-            String ts = storeInfomation.getFileMetaInfomation().getString(Tag.TransferSyntaxUID);
-            Path dcmpath = Paths.get(storageDir.getAbsolutePath(), storeInfomation.getClientId(), iuid + ".dcm");
-            boolean ok = true;
-            if (!dcmpath.getParent().toFile().exists()) {
-                ok = dcmpath.getParent().toFile().mkdirs();
-            }
-            if (ok) {
-                try (DicomInputStream dicomInputStream = new DicomInputStream(new ByteArrayInputStream(buffer));
-                     DicomOutputStream dicomOutputStream = new DicomOutputStream(dcmpath.toFile())
-                ) {
-                    Attributes ds = dicomInputStream.readDataset(-1, Tag.PixelData);
-                    dicomOutputStream.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
-                    dicomOutputStream.write(buffer);
-                    dicomOutputStream.flush();
-                    LOG.info("DICOM文件写入磁盘: {}",  dcmpath);
-                    messageQueueWriter.write(storeInfomation.getClientId(), storeInfomation.getAppId(), ts, ds);
-                } catch (IOException e) {
-                    LOG.error("DICOM文件写入磁盘失败:{}", e);
-                }
-            } else {
-                LOG.info("创建存储目录失败：{}", dcmpath);
-            }
+//            String iuid = storeInfomation.getFileMetaInfomation().getString(Tag.AffectedSOPInstanceUID);
+//            String ts = storeInfomation.getFileMetaInfomation().getString(Tag.TransferSyntaxUID);
+//            Path dcmpath = Paths.get(storageDir.getAbsolutePath(), storeInfomation.getClientId(), iuid + ".dcm");
+//            boolean ok = true;
+//            if (!dcmpath.getParent().toFile().exists()) {
+//                ok = dcmpath.getParent().toFile().mkdirs();
+//            }
+//            if (ok) {
+//                try (DicomInputStream dicomInputStream = new DicomInputStream(new ByteArrayInputStream(buffer));
+//                     DicomOutputStream dicomOutputStream = new DicomOutputStream(dcmpath.toFile())
+//                ) {
+//                    Attributes ds = dicomInputStream.readDataset(-1, Tag.PixelData);
+//                    dicomOutputStream.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
+//                    dicomOutputStream.write(buffer);
+//                    dicomOutputStream.flush();
+//                    LOG.info("DICOM文件写入磁盘: {}",  dcmpath);
+//
+//                } catch (IOException e) {
+//                    LOG.error("DICOM文件写入磁盘失败:{}", e);
+//                }
+//            } else {
+//                LOG.info("创建存储目录失败：{}", dcmpath);
+//            }
         });
 
 
