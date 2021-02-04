@@ -47,26 +47,26 @@ public class RsaAssociationHandler extends AssociationHandler {
     private File tmpDir;
     private final ExecutorService executorPools;
     private final ThreadFactory namedThreadFactory;
+    private final long KEEPALIVETIME = 60L;
 
     /***
      * RSA 验证
      */
-    public RsaAssociationHandler( ) {
+    public RsaAssociationHandler() {
         super();
 
         int corePoolSize = Runtime.getRuntime().availableProcessors();
-        int maxPoolSize = 10 * corePoolSize;
-        long keepAliveTime = 10L;
 
         namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("AsScp-pool-%d").build();
         executorPools = new ThreadPoolExecutor(
-                corePoolSize,
-                maxPoolSize,
-                keepAliveTime,
+                2 * corePoolSize,
+                10 * corePoolSize,
+                KEEPALIVETIME,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(), namedThreadFactory,
                 new ThreadPoolExecutor.CallerRunsPolicy()
         );
+
 
     }
 
@@ -198,7 +198,7 @@ public class RsaAssociationHandler extends AssociationHandler {
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
-    protected static void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File rootDir, final  File tmpDir) {
+    protected static void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File rootDir, final File tmpDir) {
         StopWatch sw = new StopWatch();
         sw.start();
         int allItems = pos.size();
@@ -253,7 +253,8 @@ public class RsaAssociationHandler extends AssociationHandler {
         final HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
         final File rootDir = this.storageDir;
-        executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, rootDir,tmpDir));
+        executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, rootDir, tmpDir));
         super.onClose(as);
+
     }
 }
