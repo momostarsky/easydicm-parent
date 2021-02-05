@@ -205,20 +205,22 @@ public class RsaAssociationHandler extends AssociationHandler {
         MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
         as.setProperty(GlobalConstant.AssicationSessionData, mapBuffer);
 
-        ArrayList<StoreInfomation> rec = new ArrayList<>(3000);
-        as.setProperty(GlobalConstant.AssicationSopPostion, rec);
+        HashMap<Integer, StoreInfomation> maps = new HashMap<>(3000);
+        // ArrayList<StoreInfomation> rec = new ArrayList<>(3000);
+        as.setProperty(GlobalConstant.AssicationSopPostion, maps);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
-    protected void createDicomFiles(final String sessionId, final ArrayList<StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File dicomFileSaveDir, final File tmpDir) {
+    protected void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File dicomFileSaveDir, final File tmpDir) {
         StopWatch sw = new StopWatch();
         sw.start();
         int allItems = pos.size();
         mapBuffer.flip();
 //        Optional<StoreInfomation> maxsz = pos.stream().max(Comparator.comparingInt(StoreInfomation::getDataLength));
-        //---采用顺序读的方式
-        pos.stream().sorted(Comparator.comparingInt(StoreInfomation::getDataPositon)).forEach(storeInfomation -> {
-            Integer spx = storeInfomation.getDataPositon();
+        //---采用 forEach 顺序读的方式
+        pos.keySet().stream().sorted(Comparator.comparingInt(o -> o)).forEach(keyx -> {
+            StoreInfomation storeInfomation = pos.get(keyx);
+            Integer spx = keyx;
             Integer sz = storeInfomation.getDataLength();
             final byte[] memBuffer = new byte[sz];
             mapBuffer.position(spx);
@@ -262,7 +264,7 @@ public class RsaAssociationHandler extends AssociationHandler {
     protected void onClose(Association as) {
         //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
         final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
-        final ArrayList<StoreInfomation> pos = (ArrayList<StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        final HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
         final File dicomFileSaveDir = this.storageDir;
         executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, dicomFileSaveDir, tmpDir));

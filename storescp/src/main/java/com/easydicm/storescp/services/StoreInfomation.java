@@ -6,13 +6,13 @@ public class StoreInfomation {
 
     private final Attributes fileMetaInfomation;
     private final int     dataLength;
-    private final int     dataPositon;
 
-    public StoreInfomation( Attributes fileMetaInfomation, int postion, int dataLength) {
+
+    public StoreInfomation( Attributes fileMetaInfomation,  int dataLength) {
 
         this.fileMetaInfomation = fileMetaInfomation;
         this.dataLength = dataLength;
-        this.dataPositon = postion;
+
     }
 
     public Attributes getFileMetaInfomation() {
@@ -25,7 +25,5 @@ public class StoreInfomation {
         return dataLength;
     }
 
-    public int getDataPositon() {
-        return dataPositon;
-    }
+
 }

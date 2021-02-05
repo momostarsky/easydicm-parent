@@ -76,17 +76,17 @@ public class StoreScp extends BasicCStoreSCP {
 
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
+        byte[] arr = data.readAllBytes();
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
         String tsuid = pc.getTransferSyntax();
         Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
-        byte[] arr = data.readAllBytes();
-
-        ArrayList<StoreInfomation> pos = (ArrayList<StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
-        StoreInfomation storeInfomation = new StoreInfomation(fmi, mapBuffer.position(), arr.length);
+        int position = mapBuffer.position();
+        StoreInfomation storeInfomation = new StoreInfomation(fmi, arr.length);
+        pos.put(position, storeInfomation);
         mapBuffer.put(arr);
-        pos.add(storeInfomation);
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 
