@@ -205,7 +205,7 @@ public class RsaAssociationHandler extends AssociationHandler {
         MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
         as.setProperty(GlobalConstant.AssicationSessionData, mapBuffer);
 
-        ArrayList<StoreInfomation> rec = new ArrayList<>(512);
+        ArrayList<StoreInfomation> rec = new ArrayList<>(3000);
         as.setProperty(GlobalConstant.AssicationSopPostion, rec);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
@@ -265,7 +265,7 @@ public class RsaAssociationHandler extends AssociationHandler {
         final ArrayList<StoreInfomation> pos = (ArrayList<StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
         final File dicomFileSaveDir = this.storageDir;
-        createDicomFiles(sessionId, pos, mapBuffer, dicomFileSaveDir, tmpDir);
+        executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, dicomFileSaveDir, tmpDir));
         as.clearProperty(GlobalConstant.AssicationSessionId);
         as.clearProperty(GlobalConstant.AssicationSopPostion);
         as.clearProperty(GlobalConstant.AssicationSessionData);
