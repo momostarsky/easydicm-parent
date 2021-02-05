@@ -15,7 +15,6 @@ rsakey/
 *.log
 /log/
 /log/sys.log
-/logs/
 /logs/info/
 /logs/log_debug.log
 /logs/log_error.log
