@@ -3,6 +3,7 @@ package com.easydicm.storescp;
 
 import com.easydicm.scputil.RSAUtil2048;
 import com.easydicm.storescp.services.StoreInfomation;
+import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.sun.jna.Platform;
 import org.apache.commons.io.FileUtils;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 
 
 /**
@@ -47,7 +49,12 @@ public class RsaAssociationHandler extends AssociationHandler {
     private File tmpDir;
     private final ExecutorService executorPools;
     private final ThreadFactory namedThreadFactory;
+
     private final long KEEPALIVETIME = 60L;
+    /***
+     * MappedByteBuffer 最大容量是2G
+     */
+    private static final int MMAPSIZE = Integer.MAX_VALUE - 1024;
 
     /***
      * RSA 验证
@@ -58,14 +65,18 @@ public class RsaAssociationHandler extends AssociationHandler {
         int corePoolSize = Runtime.getRuntime().availableProcessors();
 
         namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("AsScp-pool-%d").build();
-        executorPools = new ThreadPoolExecutor(
-                2 * corePoolSize,
-                10 * corePoolSize,
-                KEEPALIVETIME,
-                TimeUnit.SECONDS,
-                new SynchronousQueue<>(), namedThreadFactory,
-                new ThreadPoolExecutor.CallerRunsPolicy()
-        );
+
+        executorPools = Executors.newCachedThreadPool(namedThreadFactory);
+
+//        executorPools = new ThreadPoolExecutor(
+//                2 * corePoolSize,
+//                2000,
+//                KEEPALIVETIME,
+//                TimeUnit.SECONDS,
+//                new LinkedBlockingQueue<>(),
+//                namedThreadFactory,
+//                new ThreadPoolExecutor.CallerRunsPolicy()
+//        );
 
 
     }
@@ -188,56 +199,55 @@ public class RsaAssociationHandler extends AssociationHandler {
         }
         String sessionUid = UUID.randomUUID().toString();
         as.setProperty(GlobalConstant.AssicationSessionId, sessionUid);
+
         Path data = Paths.get(tmpDir.getAbsolutePath(), sessionUid + ".data");
         RandomAccessFile mapFile = new RandomAccessFile(data.toFile(), "rw");
-        MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, Integer.MAX_VALUE - 1024);
-
+        MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
         as.setProperty(GlobalConstant.AssicationSessionData, mapBuffer);
-        HashMap<Integer, StoreInfomation> rec = new HashMap<Integer, StoreInfomation>(100);
+
+        ArrayList<StoreInfomation> rec = new ArrayList<>(512);
         as.setProperty(GlobalConstant.AssicationSopPostion, rec);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
-    protected static void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File rootDir, final File tmpDir) {
+    protected void createDicomFiles(final String sessionId, final ArrayList<StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File dicomFileSaveDir, final File tmpDir) {
         StopWatch sw = new StopWatch();
         sw.start();
         int allItems = pos.size();
         mapBuffer.flip();
-        ArrayList<Integer> list = new ArrayList<>(pos.keySet());
-        list.sort(Comparator.comparingInt(o -> o));
-        ArrayList<StoreInfomation> values = new ArrayList<>(pos.values());
-        Optional<StoreInfomation> maxsz = values.stream().max(Comparator.comparingInt(StoreInfomation::getDataLength));
-        byte[] buffer = new byte[maxsz.get().getDataLength()];
-        Iterator<Integer> iterator = list.iterator();
-        //迭代排序后的key的list
-        while ((iterator.hasNext())) {
-            Integer spx = iterator.next();
-            StoreInfomation storeInfomation = pos.get(spx);
+//        Optional<StoreInfomation> maxsz = pos.stream().max(Comparator.comparingInt(StoreInfomation::getDataLength));
+        //---采用顺序读的方式
+        pos.stream().sorted(Comparator.comparingInt(StoreInfomation::getDataPositon)).forEach(storeInfomation -> {
+            Integer spx = storeInfomation.getDataPositon();
             Integer sz = storeInfomation.getDataLength();
+            final byte[] memBuffer = new byte[sz];
             mapBuffer.position(spx);
-            mapBuffer.get(buffer, 0, sz);
-            ByteArrayInputStream arrayInputStream = new ByteArrayInputStream(buffer, 0, sz);
-            try (DicomInputStream dis = new DicomInputStream(arrayInputStream)) {
-                Attributes attr = dis.readDataset(-1, Tag.PixelData);
-                String patId = attr.getString(Tag.PatientID, "");
-                String stdId = attr.getString(Tag.StudyInstanceUID, "");
-                String serId = attr.getString(Tag.SeriesInstanceUID, "");
-                String sopId = attr.getString(Tag.SOPInstanceUID, "");
+            mapBuffer.get(memBuffer, 0, sz);
+            executorPools.submit(() -> {
+                ByteArrayInputStream arrayInputStream = new ByteArrayInputStream(memBuffer, 0, sz);
+                try (DicomInputStream dis = new DicomInputStream(arrayInputStream)) {
+                    Attributes attr = dis.readDataset(-1, Tag.PixelData);
+                    String patId = attr.getString(Tag.PatientID, "");
+                    String stdId = attr.getString(Tag.StudyInstanceUID, "");
+                    String serId = attr.getString(Tag.SeriesInstanceUID, "");
+                    String sopUid = attr.getString(Tag.SOPInstanceUID);
+                    Path save = Paths.get(dicomFileSaveDir.getAbsolutePath(), patId, stdId, serId, sopUid + ".dcm");
+                    if (!save.getParent().toFile().exists()) {
+                        save.getParent().toFile().mkdirs();
+                    }
+                    try (DicomOutputStream dos = new DicomOutputStream(save.toFile())) {
+                        dos.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
+                        dos.write(memBuffer, 0, sz);
+                        dos.flush();
+                    }
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                }
+            });
 
-                Path save = Paths.get(rootDir.getAbsolutePath(), patId, stdId, serId, sopId + ".dcm");
-                if (!save.getParent().toFile().exists()) {
-                    save.getParent().toFile().mkdirs();
-                }
-                try (DicomOutputStream dos = new DicomOutputStream(save.toFile())) {
-                    dos.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
-                    dos.write(buffer, 0, sz);
-                    dos.flush();
-                }
-            } catch (IOException ioException) {
-                ioException.printStackTrace();
-            }
-        }
+        });
         mapBuffer.clear();
+        pos.clear();
         try {
             Path data = Paths.get(tmpDir.getAbsolutePath(), sessionId + ".data");
             FileUtils.forceDelete(data.toFile());
@@ -245,16 +255,20 @@ public class RsaAssociationHandler extends AssociationHandler {
         }
         sw.stop();
         LOG.debug("Generate Dicom Files :{} with {} MS", allItems, sw.getTime(TimeUnit.MILLISECONDS));
+
     }
 
     @Override
     protected void onClose(Association as) {
+        //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
         final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
-        final HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        final ArrayList<StoreInfomation> pos = (ArrayList<StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
-        final File rootDir = this.storageDir;
-        executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, rootDir, tmpDir));
+        final File dicomFileSaveDir = this.storageDir;
+        createDicomFiles(sessionId, pos, mapBuffer, dicomFileSaveDir, tmpDir);
+        as.clearProperty(GlobalConstant.AssicationSessionId);
+        as.clearProperty(GlobalConstant.AssicationSopPostion);
+        as.clearProperty(GlobalConstant.AssicationSessionData);
         super.onClose(as);
-
     }
 }

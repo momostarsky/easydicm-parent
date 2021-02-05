@@ -33,7 +33,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.*;
 
 
@@ -50,17 +52,13 @@ public class StoreScp extends BasicCStoreSCP {
     private IDicomSave dicomSave;
 
 
-
     public StoreScp(IDicomSave dicomSave) {
         super("*");
 
         this.dicomSave = dicomSave;
 
 
-
     }
-
-
 
 
     private void sleep(Association as, int[] delays) {
@@ -76,9 +74,6 @@ public class StoreScp extends BasicCStoreSCP {
     }
 
 
-
-
-
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
@@ -86,11 +81,12 @@ public class StoreScp extends BasicCStoreSCP {
         String tsuid = pc.getTransferSyntax();
         Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
         byte[] arr = data.readAllBytes();
-        HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
-        StoreInfomation storeInfomation = new StoreInfomation(fmi, arr.length);
+
+        ArrayList<StoreInfomation> pos = (ArrayList<StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
         MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
-        pos.put(mapBuffer.position(), storeInfomation);
+        StoreInfomation storeInfomation = new StoreInfomation(fmi, mapBuffer.position(), arr.length);
         mapBuffer.put(arr);
+        pos.add(storeInfomation);
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 
