@@ -78,13 +78,11 @@ public class StoreScp extends BasicCStoreSCP {
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
         byte[] arr = data.readAllBytes();
+        final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
         String tsuid = pc.getTransferSyntax();
-        int size  = (int) as.getProperty(GlobalConstant.AssicationSopPostion);
-        MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
-        RsaAssociationHandler.writeDicomInfo(mapBuffer, cuid, iuid, tsuid, arr);
-        as.setProperty(GlobalConstant.AssicationSopPostion, size + 1);
+        RsaAssociationHandler.writeDicomInfo(sessionId, cuid, iuid, tsuid, arr);
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 

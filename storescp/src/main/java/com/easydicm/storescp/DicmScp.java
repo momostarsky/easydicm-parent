@@ -1,6 +1,7 @@
 package com.easydicm.storescp;
 
 import com.easydicm.storescp.services.IDicomSave;
+import com.easydicm.storescp.services.SessionFactory;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
@@ -34,7 +35,7 @@ public class DicmScp {
     private final ApplicationEntity ae = new ApplicationEntity("*");
     private final Connection conn = new Connection();
 
-    private final AssociationHandler associationHandler = new RsaAssociationHandler();
+    private final AssociationHandler associationHandler;
     private final IDicomSave dicomSave;
 
 
@@ -81,12 +82,11 @@ public class DicmScp {
     protected DicomServiceRegistry createServiceRegistry() {
         DicomServiceRegistry serviceRegistry = new DicomServiceRegistry();
         serviceRegistry.addDicomService(new BasicCEchoSCP());
-        StoreScp scp = new StoreScp(this.dicomSave  );
+        StoreScp scp = new StoreScp(this.dicomSave);
         serviceRegistry.addDicomService(scp);
 
         StorageCommitmentScp stgCmt = new StorageCommitmentScp(this.device);
         serviceRegistry.addDicomService(stgCmt);
-
 
 
         return serviceRegistry;
@@ -102,10 +102,12 @@ public class DicmScp {
     public DicmScp(@Autowired ApplicationArguments ctx,
                    @Autowired IDicomSave dicomSave
 
+
     ) {
 
         this.ctx = ctx;
         this.dicomSave = dicomSave;
+        this.associationHandler = new RsaAssociationHandler();
 
     }
 
@@ -113,8 +115,8 @@ public class DicmScp {
     final String OPT_AE = "ae";
     final String OPT_HOST = "host";
     final String OPT_STORAGEDIR = "storagedir";
-    final String OPT_RSA= "rsa";
-    final String OPT_CACHE="tempdir";
+    final String OPT_RSA = "rsa";
+    final String OPT_CACHE = "tempdir";
 
 
     @PostConstruct
@@ -129,7 +131,7 @@ public class DicmScp {
             String aeTitle = dcmcfg.getProperty(OPT_AE);
             int port = Integer.parseInt(dcmcfg.getProperty(OPT_PORT));
             String host = dcmcfg.getProperty(OPT_HOST);
-            withRsa = Boolean.parseBoolean( dcmcfg.getProperty(OPT_RSA));
+            withRsa = Boolean.parseBoolean(dcmcfg.getProperty(OPT_RSA));
             storageDir = new File(dcmcfg.getProperty(OPT_STORAGEDIR));
             tmpDir = new File(dcmcfg.getProperty(OPT_CACHE));
             if (ctx != null) {
@@ -147,7 +149,7 @@ public class DicmScp {
                     storageDir = new File(ctx.getOptionValues(OPT_STORAGEDIR).get(0));
                 }
                 if (ctx.containsOption(OPT_RSA)) {
-                    withRsa = Boolean.parseBoolean( ctx.getOptionValues(OPT_RSA).get(0));
+                    withRsa = Boolean.parseBoolean(ctx.getOptionValues(OPT_RSA).get(0));
                 }
                 if (ctx.containsOption(OPT_CACHE)) {
                     tmpDir = new File(ctx.getOptionValues(OPT_CACHE).get(0));
@@ -169,7 +171,7 @@ public class DicmScp {
             device.addApplicationEntity(ae);
             device.setDimseRQHandler(createServiceRegistry());
 
-            RsaAssociationHandler  handler = (RsaAssociationHandler) associationHandler;
+            RsaAssociationHandler handler = (RsaAssociationHandler) associationHandler;
             handler.setWithRsa(withRsa);
             handler.setStorageDir(storageDir);
             handler.setTempDir(tmpDir);

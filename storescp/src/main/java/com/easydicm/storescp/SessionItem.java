@@ -2,6 +2,9 @@ package com.easydicm.storescp;
 
 import lombok.SneakyThrows;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -15,13 +18,17 @@ public class SessionItem {
     private final RandomAccessFile mapFile;
     private final Path data;
 
-    @SneakyThrows
-    public SessionItem(String sessionUid) {
 
-        data = Paths.get("./", sessionUid + ".data");
+    @SneakyThrows
+    public SessionItem(String sessionUid, File tmpDir) {
+
+        data = Paths.get(tmpDir.getAbsolutePath(), sessionUid + ".data");
+
         mapFile = new RandomAccessFile(data.toFile(), "rw");
         mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
         slicesCount = 0;
+
+
     }
 
     public MappedByteBuffer getMapBuffer() {
