@@ -15,6 +15,7 @@ import org.dcm4che3.io.DicomInputStream;
 import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
+import org.dcm4che3.net.PDVInputStream;
 import org.dcm4che3.net.pdu.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,9 +51,9 @@ public class RsaAssociationHandler extends AssociationHandler {
     private final ExecutorService executorPools;
     private final ThreadFactory namedThreadFactory;
 
-    private final long KEEPALIVETIME = 60L;
     /***
      * MappedByteBuffer 最大容量是2G
+     * 可以接受批量发送的最大容量
      */
     private static final int MMAPSIZE = Integer.MAX_VALUE - 1024;
 
@@ -204,29 +205,77 @@ public class RsaAssociationHandler extends AssociationHandler {
         RandomAccessFile mapFile = new RandomAccessFile(data.toFile(), "rw");
         MappedByteBuffer mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
         as.setProperty(GlobalConstant.AssicationSessionData, mapBuffer);
-
-        HashMap<Integer, StoreInfomation> maps = new HashMap<>(3000);
-        // ArrayList<StoreInfomation> rec = new ArrayList<>(3000);
-        as.setProperty(GlobalConstant.AssicationSopPostion, maps);
+        as.setProperty(GlobalConstant.AssicationSopPostion, 0);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
-    protected void createDicomFiles(final String sessionId, final HashMap<Integer, StoreInfomation> pos, final MappedByteBuffer mapBuffer, final File dicomFileSaveDir, final File tmpDir) {
+
+    public static void writeDicomInfo(final MappedByteBuffer mapBuffer, final String cuid, final String iuid, final String tsuid, final byte[] arr) {
+
+        byte[] cuidData = cuid.getBytes(StandardCharsets.UTF_8);
+        int cuidSize = cuidData.length;
+
+        byte[] iuidData = iuid.getBytes(StandardCharsets.UTF_8);
+        int iuidSize = iuidData.length;
+
+        byte[] tsData = tsuid.getBytes(StandardCharsets.UTF_8);
+        int tsSize = tsData.length;
+
+        int arrSize = arr.length;
+
+        //----必须加上16 个字节（4 个整数）
+        int dataSize =  cuidSize + iuidSize + tsSize  + arrSize + 16 ;
+        mapBuffer.putInt(dataSize);
+
+        mapBuffer.putInt(cuidSize);
+        mapBuffer.put(cuidData);
+
+        mapBuffer.putInt(iuidSize);
+        mapBuffer.put(iuidData);
+
+        mapBuffer.putInt(tsSize);
+        mapBuffer.put(tsData);
+
+        mapBuffer.putInt(arrSize);
+        mapBuffer.put(arr);
+
+
+    }
+
+
+    protected void createDicomFiles(final String sessionId, final int pos, final MappedByteBuffer mapBuffer, final File dicomFileSaveDir, final File tmpDir) {
         StopWatch sw = new StopWatch();
         sw.start();
-        int allItems = pos.size();
+        int allItems = pos;
         mapBuffer.flip();
-//        Optional<StoreInfomation> maxsz = pos.stream().max(Comparator.comparingInt(StoreInfomation::getDataLength));
-        //---采用 forEach 顺序读的方式
-        pos.keySet().stream().sorted(Comparator.comparingInt(o -> o)).forEach(keyx -> {
-            StoreInfomation storeInfomation = pos.get(keyx);
-            Integer spx = keyx;
-            Integer sz = storeInfomation.getDataLength();
-            final byte[] memBuffer = new byte[sz];
-            mapBuffer.position(spx);
-            mapBuffer.get(memBuffer, 0, sz);
+
+
+        for (int idx = 0; idx < allItems; idx++) {
+            //---读取总长度
+            int dataSize = mapBuffer.getInt();
+            final byte[] buffer = new byte[dataSize];
+            mapBuffer.get(buffer,0 , dataSize);
             executorPools.submit(() -> {
-                ByteArrayInputStream arrayInputStream = new ByteArrayInputStream(memBuffer, 0, sz);
+                final ByteBuffer  memBuffer = ByteBuffer.wrap(buffer);
+                byte[] fmiData =new byte[64 * 3];
+                int cuidSize =  memBuffer.getInt();
+                memBuffer.get(fmiData, 0, cuidSize);
+
+                int iuidSize = memBuffer.getInt();
+                memBuffer.get(fmiData, 64, iuidSize);
+
+                int tsSize = memBuffer.getInt();
+                memBuffer.get(fmiData, 128, tsSize);
+
+                final   Attributes fmi = Attributes.createFileMetaInformation(
+                        new String(fmiData, 0,  iuidSize, StandardCharsets.UTF_8),
+                        new String(fmiData, 64, cuidSize, StandardCharsets.UTF_8),
+                        new String(fmiData, 128,tsSize, StandardCharsets.UTF_8)
+                );
+
+                int arrSize = memBuffer.getInt();
+
+                ByteArrayInputStream arrayInputStream = new ByteArrayInputStream(buffer, memBuffer.position(), arrSize);
                 try (DicomInputStream dis = new DicomInputStream(arrayInputStream)) {
                     Attributes attr = dis.readDataset(-1, Tag.PixelData);
                     String patId = attr.getString(Tag.PatientID, "");
@@ -238,18 +287,19 @@ public class RsaAssociationHandler extends AssociationHandler {
                         save.getParent().toFile().mkdirs();
                     }
                     try (DicomOutputStream dos = new DicomOutputStream(save.toFile())) {
-                        dos.writeFileMetaInformation(storeInfomation.getFileMetaInfomation());
-                        dos.write(memBuffer, 0, sz);
+                        dos.writeFileMetaInformation(fmi);
+                        dos.write(buffer, memBuffer.position(), arrSize);
                         dos.flush();
                     }
                 } catch (IOException ioException) {
                     ioException.printStackTrace();
                 }
+                memBuffer.clear();
             });
 
-        });
+        }
         mapBuffer.clear();
-        pos.clear();
+
         try {
             Path data = Paths.get(tmpDir.getAbsolutePath(), sessionId + ".data");
             FileUtils.forceDelete(data.toFile());
@@ -264,7 +314,7 @@ public class RsaAssociationHandler extends AssociationHandler {
     protected void onClose(Association as) {
         //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
         final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
-        final HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        final int  pos = (int) as.getProperty(GlobalConstant.AssicationSopPostion);
         final MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
         final File dicomFileSaveDir = this.storageDir;
         executorPools.submit(() -> createDicomFiles(sessionId, pos, mapBuffer, dicomFileSaveDir, tmpDir));

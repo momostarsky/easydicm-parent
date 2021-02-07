@@ -31,6 +31,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.Channel;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -80,13 +81,10 @@ public class StoreScp extends BasicCStoreSCP {
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
         String tsuid = pc.getTransferSyntax();
-        Attributes fmi = as.createFileMetaInformation(iuid, cuid, tsuid);
-        HashMap<Integer, StoreInfomation> pos = (HashMap<Integer, StoreInfomation>) as.getProperty(GlobalConstant.AssicationSopPostion);
+        int size  = (int) as.getProperty(GlobalConstant.AssicationSopPostion);
         MappedByteBuffer mapBuffer = (MappedByteBuffer) as.getProperty(GlobalConstant.AssicationSessionData);
-        int position = mapBuffer.position();
-        StoreInfomation storeInfomation = new StoreInfomation(fmi, arr.length);
-        pos.put(position, storeInfomation);
-        mapBuffer.put(arr);
+        RsaAssociationHandler.writeDicomInfo(mapBuffer, cuid, iuid, tsuid, arr);
+        as.setProperty(GlobalConstant.AssicationSopPostion, size + 1);
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 
