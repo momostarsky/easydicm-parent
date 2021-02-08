@@ -26,6 +26,8 @@ public class SessionItem {
 
         mapFile = new RandomAccessFile(data.toFile(), "rw");
         mapBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, MMAPSIZE);
+        //---添加一个计数器
+        mapBuffer.putInt(0);
         slicesCount = 0;
 
 

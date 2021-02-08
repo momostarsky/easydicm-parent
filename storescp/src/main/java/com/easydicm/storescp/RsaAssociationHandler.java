@@ -2,9 +2,8 @@ package com.easydicm.storescp;
 
 
 import com.easydicm.scputil.RSAUtil2048;
-import com.easydicm.storescp.services.SessionFactory;
-import com.easydicm.storescp.services.impl.SesssionFactoryImpl;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.easydicm.storescp.services.StoreProcessor;
+import com.easydicm.storescp.services.impl.StoreProcessorImpl;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
@@ -25,9 +24,6 @@ import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 
 
 /**
@@ -36,19 +32,9 @@ import java.util.concurrent.ThreadFactory;
 public class RsaAssociationHandler extends AssociationHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RsaAssociationHandler.class);
-    private static final SessionFactory sessionFactory = new SesssionFactoryImpl();
-
     private boolean withRsaCheck;
     private File storageDir;
-
-    private final ExecutorService executorPools;
-    private final ThreadFactory namedThreadFactory;
-
-    /***
-     * MappedByteBuffer 最大容量是2G
-     * 可以接受批量发送的最大容量
-     */
-    private static final int MMAPSIZE = Integer.MAX_VALUE - 1024;
+    private File tmpDir;
 
 
     /***
@@ -58,21 +44,6 @@ public class RsaAssociationHandler extends AssociationHandler {
         super();
 
 
-        int corePoolSize = Runtime.getRuntime().availableProcessors();
-
-        namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("AsScp-pool-%d").build();
-
-        executorPools = Executors.newCachedThreadPool(namedThreadFactory);
-
-//        executorPools = new ThreadPoolExecutor(
-//                2 * corePoolSize,
-//                2000,
-//                KEEPALIVETIME,
-//                TimeUnit.SECONDS,
-//                new LinkedBlockingQueue<>(),
-//                namedThreadFactory,
-//                new ThreadPoolExecutor.CallerRunsPolicy()
-//        );
 
 
     }
@@ -94,7 +65,7 @@ public class RsaAssociationHandler extends AssociationHandler {
     public void setTempDir(File tmpDir) throws IOException {
 
 
-        sessionFactory.setTemplateDirectory(tmpDir);
+      this.tmpDir = tmpDir;
 
     }
 
@@ -193,27 +164,18 @@ public class RsaAssociationHandler extends AssociationHandler {
             LOG.info("关闭RSA验证！");
         }
         String sessionUid = UUID.randomUUID().toString();
-        as.setProperty(GlobalConstant.AssicationSessionId, sessionUid);
-        boolean  regok = sessionFactory.SessionRegister(sessionUid);
-        if(!regok){
-            LOG.error("会话注册失败！{} {}", hold.getAddress(), hold.getPort());
-        } else {
-            LOG.error("会话注册成功！{} {}", hold.getAddress(), hold.getPort());
-        }
+        StoreProcessor processor=new StoreProcessorImpl(sessionUid, this.storageDir,this.tmpDir);
+        as.setProperty(GlobalConstant.AssicationSessionId, processor);
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 
 
-    public static void writeDicomInfo(final String sessionUid, final String cuid, final String iuid, final String tsuid, final byte[] arr) {
-        sessionFactory.writeDicomInfo(sessionUid, cuid, iuid, tsuid, arr);
-    }
 
     @Override
     protected void onClose(Association as) {
         //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
-        final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
-        final File dicomFileSaveDir = this.storageDir;
-        executorPools.submit(() -> sessionFactory.saveDicomInfo(sessionId, dicomFileSaveDir));
+        final  StoreProcessor sp = (StoreProcessor)as.getProperty(GlobalConstant.AssicationSessionId);
+        sp.saveDicomInfo();
         as.clearProperty(GlobalConstant.AssicationSessionId);
         super.onClose(as);
     }

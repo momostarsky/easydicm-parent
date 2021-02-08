@@ -3,6 +3,7 @@ package com.easydicm.storescp;
 
 import com.easydicm.storescp.services.IDicomSave;
 import com.easydicm.storescp.services.StoreInfomation;
+import com.easydicm.storescp.services.StoreProcessor;
 import com.google.common.io.ByteSource;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import freemarker.core.Environment;
@@ -78,11 +79,11 @@ public class StoreScp extends BasicCStoreSCP {
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
         byte[] arr = data.readAllBytes();
-        final String sessionId = as.getProperty(GlobalConstant.AssicationSessionId).toString();
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
         String tsuid = pc.getTransferSyntax();
-        RsaAssociationHandler.writeDicomInfo(sessionId, cuid, iuid, tsuid, arr);
+        StoreProcessor sp = (StoreProcessor)as.getProperty(GlobalConstant.AssicationSessionId);
+        sp.writeDicomInfo(cuid,iuid,tsuid,arr);
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 

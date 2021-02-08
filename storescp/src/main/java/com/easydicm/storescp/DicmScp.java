@@ -1,7 +1,6 @@
 package com.easydicm.storescp;
 
 import com.easydicm.storescp.services.IDicomSave;
-import com.easydicm.storescp.services.SessionFactory;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
