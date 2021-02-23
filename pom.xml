@@ -119,6 +119,15 @@
             <artifactId>jna</artifactId>
             <version>5.5.0</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.archive.heritrix/heritrix-commons -->
+        <dependency>
+            <groupId>org.archive.heritrix</groupId>
+            <artifactId>heritrix-commons</artifactId>
+            <version>3.4.0-20200518</version>
+        </dependency>
+
+
+
         <dependency>
             <groupId>org.apache.rocketmq</groupId>
             <artifactId>rocketmq-client</artifactId>

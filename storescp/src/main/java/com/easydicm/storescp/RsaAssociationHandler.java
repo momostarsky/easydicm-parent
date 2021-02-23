@@ -10,6 +10,7 @@ import org.dcm4che3.net.AssociationHandler;
 import org.dcm4che3.net.pdu.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 import java.io.File;
@@ -174,8 +175,16 @@ public class RsaAssociationHandler extends AssociationHandler {
     @Override
     protected void onClose(Association as) {
         //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
+
+        Assert.isTrue(as.containsProperty(GlobalConstant.AssicationSessionId),"SessionId 丢失");
         final  StoreProcessor sp = (StoreProcessor)as.getProperty(GlobalConstant.AssicationSessionId);
-        sp.saveDicomInfo();
+        try {
+            sp.saveDicomInfo();
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        } finally {
+            sp.clear();
+        }
         as.clearProperty(GlobalConstant.AssicationSessionId);
         super.onClose(as);
     }
