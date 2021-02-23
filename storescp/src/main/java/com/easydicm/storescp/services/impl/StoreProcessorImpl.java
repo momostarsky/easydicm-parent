@@ -16,11 +16,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Method;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
 public class StoreProcessorImpl implements StoreProcessor {
@@ -40,6 +43,20 @@ public class StoreProcessorImpl implements StoreProcessor {
 
 //    private final ExecutorService executorPools;
 //    private final ThreadFactory namedThreadFactory;
+//     static void clean(final Object buffer) throws Exception {
+//        AccessController.doPrivileged(new PrivilegedAction() {
+//            public Object run() {
+//                try {
+//                    Method getCleanerMethod = buffer.getClass().getMethod("cleaner",new Class[0]);
+//                    getCleanerMethod.setAccessible(true);
+//                    sun.misc.Cleaner cleaner =(sun.misc.Cleaner)getCleanerMethod.invoke(buffer,new Object[0]);
+//                    cleaner.clean();
+//                } catch(Exception e) {
+//                    e.printStackTrace();
+//                }
+//                return null;}});
+//    }
+
 
     public StoreProcessorImpl(String sessionUid, File storageDir, File tempDir) throws IOException {
 
