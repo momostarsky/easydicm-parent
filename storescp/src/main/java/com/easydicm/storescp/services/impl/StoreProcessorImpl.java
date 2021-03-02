@@ -1,6 +1,7 @@
 package com.easydicm.storescp.services.impl;
 
 import com.easydicm.storescp.services.StoreProcessor;
+import lombok.SneakyThrows;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.dcm4che3.data.Attributes;
@@ -16,17 +17,36 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
 public class StoreProcessorImpl implements StoreProcessor {
+
+
+
+      @SneakyThrows
+      static void unmap(MappedByteBuffer mappedByteBuffer)   {
+        // Doing this with reflection:
+        // sun.misc.Unsafe.theUnsafe.invokeCleaner(mappedByteBuffer)
+        Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+        Method invokeCleanerMethod = unsafeClass.getMethod("invokeCleaner", ByteBuffer.class);
+        invokeCleanerMethod.setAccessible(true);
+        Field theUnsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        theUnsafeField.setAccessible(true);
+        Object theUnsafe = theUnsafeField.get(null);
+        invokeCleanerMethod.invoke(theUnsafe, mappedByteBuffer);
+    }
+
+
+
+
     private static final Logger LOG = LoggerFactory.getLogger(StoreProcessorImpl.class);
     private final File tmpDir;
     private final File sorageDir;
@@ -40,22 +60,6 @@ public class StoreProcessorImpl implements StoreProcessor {
 
     private final File tsp;
     private final File ssp;
-
-//    private final ExecutorService executorPools;
-//    private final ThreadFactory namedThreadFactory;
-//     static void clean(final Object buffer) throws Exception {
-//        AccessController.doPrivileged(new PrivilegedAction() {
-//            public Object run() {
-//                try {
-//                    Method getCleanerMethod = buffer.getClass().getMethod("cleaner",new Class[0]);
-//                    getCleanerMethod.setAccessible(true);
-//                    sun.misc.Cleaner cleaner =(sun.misc.Cleaner)getCleanerMethod.invoke(buffer,new Object[0]);
-//                    cleaner.clean();
-//                } catch(Exception e) {
-//                    e.printStackTrace();
-//                }
-//                return null;}});
-//    }
 
 
     public StoreProcessorImpl(String sessionUid, File storageDir, File tempDir) throws IOException {
@@ -120,7 +124,7 @@ public class StoreProcessorImpl implements StoreProcessor {
 
     protected void createDicomFiles(final int posx, final int dataSize) throws IOException {
         // final ByteBuffer memBuffer = ByteBuffer.wrap(buffer);
-        MappedByteBuffer finalMemBuffer = mapFile.getChannel().map(FileChannel.MapMode.READ_WRITE, posx, dataSize);
+        MappedByteBuffer finalMemBuffer = mapFile.getChannel().map(FileChannel.MapMode.PRIVATE, posx, dataSize);
         try {
             byte[] fmiData = new byte[64 * 3];
             int cuidSize = finalMemBuffer.getInt();
@@ -163,7 +167,6 @@ public class StoreProcessorImpl implements StoreProcessor {
             }
         } finally {
             finalMemBuffer.clear();
-
         }
 
 
@@ -198,11 +201,9 @@ public class StoreProcessorImpl implements StoreProcessor {
             final int pos = mapBuffer.position();
             Assert.isTrue(dataSize + pos <= MMAPSIZE, "磁盘映射尺寸超出范围!");
             //--不要使用线程池,顺序读比线程池的切换速度更快
-            try {
-                createDicomFiles(pos, dataSize);
-            } catch (IOException ioException) {
-                LOG.error("生成DICOM  切片失败:{}", ioException);
-            }
+
+            createDicomFiles(pos, dataSize);
+
             mapBuffer.position(pos + dataSize);
         }
 
@@ -216,29 +217,36 @@ public class StoreProcessorImpl implements StoreProcessor {
 
         tsp.delete();
         ssp.delete();
-        data.toFile().delete();
+        mapBuffer.flip();
+        mapBuffer.clear();
+        unmap(mapBuffer);
+        try {
+            mapFile.close();
+        } catch (IOException ioException) {
+            LOG.error("File  deleted  Failed  :{} ", ioException);
+        }
+//        boolean deleted = data.toFile().delete();
+//        if (!(deleted)) {
+//            LOG.error("Could not delete file:{} ", data);
+//        } else {
+//            LOG.error("File  deleted  Failed  :{} ", data);
+//        }
     }
 
     class ByteBufferBackedInputStream extends InputStream {
 
         final MappedByteBuffer buf;
 
-        final boolean bDuplicateUsage;
 
         ByteBufferBackedInputStream(MappedByteBuffer buf) {
 
             this.buf = buf;
             this.buf.mark();
-            this.bDuplicateUsage = false;
-
         }
 
-        ByteBufferBackedInputStream(MappedByteBuffer buf, boolean duplicateUsage) {
-
-            this.buf = buf;
+        @Override
+        public synchronized void mark(int readlimit) {
             this.buf.mark();
-            this.bDuplicateUsage = duplicateUsage;
-
         }
 
         public synchronized int read() {
@@ -267,12 +275,10 @@ public class StoreProcessorImpl implements StoreProcessor {
         @Override
         public void close() {
             //---如果
-            if (bDuplicateUsage) {
-                this.buf.reset();
-            } else {
-                this.buf.clear();
-            }
+            this.buf.clear();
 
+            // 在关闭资源时执行以下代码释放内存
+            unmap(this.buf);
 
         }
 
@@ -280,6 +286,7 @@ public class StoreProcessorImpl implements StoreProcessor {
         public int available() {
             return this.buf.capacity() - this.buf.position();
         }
+
 
     }
 
