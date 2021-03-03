@@ -28,7 +28,10 @@ public class DcmFileScanner {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                         throws IOException {
 
-                    files.add(file.toFile());
+                    if(file.toFile().isFile()){
+                        files.add(file.toFile());
+                    }
+
                     return FileVisitResult.CONTINUE;
                 }
 

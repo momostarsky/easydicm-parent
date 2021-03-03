@@ -6,10 +6,7 @@ import com.easydicm.storescp.services.StoreProcessor;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
-import org.dcm4che3.net.Association;
-import org.dcm4che3.net.Dimse;
-import org.dcm4che3.net.PDVInputStream;
-import org.dcm4che3.net.Status;
+import org.dcm4che3.net.*;
 import org.dcm4che3.net.pdu.PresentationContext;
 import org.dcm4che3.net.service.BasicCStoreSCP;
 import org.slf4j.Logger;
@@ -53,9 +50,27 @@ public class StoreScp extends BasicCStoreSCP {
         }
     }
 
+    @Override
+    public void onDimseRQ(Association as, PresentationContext pc, Dimse dimse, Attributes rq, PDVInputStream data) throws IOException {
+        as.addAssociationListener(new AssociationListener() {
+            @Override
+            public void onClose(Association association) {
+                LOG.info("AssociationListener2 Closed :{} {}",association.getSerialNo() ,rq);
+            }
+        });
+        super.onDimseRQ(as, pc, dimse, rq, data);
+    }
+
+    @Override
+    public void onClose(Association as) {
+        LOG.info("AssociationListener3 Closed :{}",as.getSerialNo());
+        super.onClose(as);
+    }
 
     @Override
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
+        LOG.info("SN:{}",as.getSerialNo());
+
         byte[] arr = data.readAllBytes();
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);

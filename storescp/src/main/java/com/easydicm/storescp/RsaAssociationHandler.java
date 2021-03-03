@@ -7,6 +7,7 @@ import com.easydicm.storescp.services.impl.StoreProcessorImpl;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
+import org.dcm4che3.net.AssociationListener;
 import org.dcm4che3.net.pdu.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -167,6 +168,12 @@ public class RsaAssociationHandler extends AssociationHandler {
         String sessionUid = UUID.randomUUID().toString();
         StoreProcessor processor=new StoreProcessorImpl(sessionUid, this.storageDir,this.tmpDir);
         as.setProperty(GlobalConstant.AssicationSessionId, processor);
+        as.addAssociationListener(new AssociationListener() {
+            @Override
+            public void onClose(Association association) {
+                LOG.info("AssociationListener2  Closed:{}", association.getSerialNo());
+            }
+        });
         return super.makeAAssociateAC(as, rq, userIdentity);
     }
 

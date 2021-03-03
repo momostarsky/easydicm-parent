@@ -4,6 +4,7 @@ import com.easydicm.storescp.services.IDicomSave;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.*;
+import org.dcm4che3.net.pdu.AAssociateRJ;
 import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.DicomServiceRegistry;
 import org.dcm4che3.tool.common.CLIUtils;
@@ -175,6 +176,28 @@ public class DicmScp {
             handler.setStorageDir(storageDir);
             handler.setTempDir(tmpDir);
             device.setAssociationHandler(handler);
+            device.setAssociationMonitor(new AssociationMonitor() {
+                @Override
+                public void onAssociationEstablished(Association as) {
+                    LOG.warn("DonAssociationEstablished :{}", as.getSerialNo());
+                }
+
+                @Override
+                public void onAssociationFailed(Association as, Throwable e) {
+                    LOG.warn("onAssociationFailed :{}", as.getSerialNo());
+                }
+
+                @Override
+                public void onAssociationRejected(Association as, AAssociateRJ aarj) {
+                    LOG.warn("onAssociationRejected :{}", as.getSerialNo());
+                }
+
+                @Override
+                public void onAssociationAccepted(Association as) {
+                    LOG.warn("onAssociationAccepted :{}", as.getSerialNo());
+                }
+            });
+
             int corePoolSize = Runtime.getRuntime().availableProcessors();
             int maxPoolSize = corePoolSize * 10;
             long keepAliveTime = 60L;
