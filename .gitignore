@@ -22,3 +22,7 @@ rsakey/
 /logs/log_warn.log
 ezlogx/
 .log
+# Dicom MemoryMapped File
+.data
+# Cache File
+.pxl
