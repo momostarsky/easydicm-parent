@@ -3,17 +3,26 @@ package com.easydicm.storescp;
 
 import com.easydicm.storescp.services.IDicomSave;
 import com.easydicm.storescp.services.StoreProcessor;
+import org.apache.commons.io.FileUtils;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
+import org.dcm4che3.io.DicomInputStream;
+import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.pdu.PresentationContext;
 import org.dcm4che3.net.service.BasicCStoreSCP;
+import org.dcm4che3.util.StreamUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 
 /**
@@ -71,12 +80,29 @@ public class StoreScp extends BasicCStoreSCP {
     protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp) throws IOException {
         LOG.info("SN:{}",as.getSerialNo());
 
-        byte[] arr = data.readAllBytes();
+
         String cuid = rq.getString(Tag.AffectedSOPClassUID);
         String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
         String tsuid = pc.getTransferSyntax();
-        StoreProcessor sp = (StoreProcessor)as.getProperty(GlobalConstant.AssicationSessionId);
-        sp.writeDicomInfo(cuid,iuid,tsuid,arr);
+        final Attributes fmi = Attributes.createFileMetaInformation(iuid,cuid,tsuid);
+
+        //-- 先把数据保存到磁盘
+        File  dicomF = new File("./" + iuid+".data");
+        FileUtils.copyInputStreamToFile(data, dicomF);
+
+        try (DicomInputStream dis = new DicomInputStream(dicomF)) {
+            Attributes attr = dis.readDataset(-1, Tag.PixelData);
+            Path save = this.dicomSave.computeSavePath(attr);
+            try (DicomOutputStream dos = new DicomOutputStream(save.toFile())) {
+                dos.writeFileMetaInformation(fmi);
+                FileUtils.copyFile(dicomF,dos);
+                dos.flush();
+            }
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+        dicomF.delete();
+
         rsp.setInt(Tag.Status, VR.US, Status.Success);
     }
 

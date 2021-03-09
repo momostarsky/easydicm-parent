@@ -157,6 +157,8 @@ public class DicmScp {
             }
             LOG.info("DicmSCP Setting is  {" + aeTitle + "," + host + "," + port + "}");
             LOG.warn("DicomSCP  Started :{}", aeTitle);
+            LOG.warn("DicomSCP  DicomSave to  :{}", storageDir);
+            this.dicomSave.storagePath(storageDir.getAbsolutePath());
             conn.setReceivePDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setSendPDULength(Connection.DEF_MAX_PDU_LENGTH);
             conn.setMaxOpsInvoked(0);
@@ -173,8 +175,6 @@ public class DicmScp {
 
             RsaAssociationHandler handler = (RsaAssociationHandler) associationHandler;
             handler.setWithRsa(withRsa);
-            handler.setStorageDir(storageDir);
-            handler.setTempDir(tmpDir);
             device.setAssociationHandler(handler);
             device.setAssociationMonitor(new AssociationMonitor() {
                 @Override

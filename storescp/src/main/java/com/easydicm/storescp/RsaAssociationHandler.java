@@ -3,7 +3,6 @@ package com.easydicm.storescp;
 
 import com.easydicm.scputil.RSAUtil2048;
 import com.easydicm.storescp.services.StoreProcessor;
-import com.easydicm.storescp.services.impl.StoreProcessorImpl;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.Association;
 import org.dcm4che3.net.AssociationHandler;
@@ -35,9 +34,6 @@ public class RsaAssociationHandler extends AssociationHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RsaAssociationHandler.class);
     private boolean withRsaCheck;
-    private File storageDir;
-    private File tmpDir;
-
 
     /***
      * RSA 验证
@@ -56,20 +52,7 @@ public class RsaAssociationHandler extends AssociationHandler {
     }
 
 
-    public void setStorageDir(File storageDir) {
-        if (!storageDir.exists()) {
-            storageDir.mkdirs();
-        }
-        this.storageDir = storageDir;
 
-    }
-
-    public void setTempDir(File tmpDir) throws IOException {
-
-
-      this.tmpDir = tmpDir;
-
-    }
 
     protected void rsaCheck(String remoteIdp, Association as, AAssociateRQ rq) throws AAssociateRJ {
         Collection<ExtendedNegotiation> extMsg = rq.getExtendedNegotiations();
@@ -166,8 +149,8 @@ public class RsaAssociationHandler extends AssociationHandler {
             LOG.info("关闭RSA验证！");
         }
         String sessionUid = UUID.randomUUID().toString();
-        StoreProcessor processor=new StoreProcessorImpl(sessionUid, this.storageDir,this.tmpDir);
-        as.setProperty(GlobalConstant.AssicationSessionId, processor);
+
+        as.setProperty(GlobalConstant.AssicationSessionId, sessionUid);
         as.addAssociationListener(new AssociationListener() {
             @Override
             public void onClose(Association association) {
@@ -184,14 +167,6 @@ public class RsaAssociationHandler extends AssociationHandler {
         //-- 此处不用启动新的线程， 多个线程上下文切换的速度更慢
 
         Assert.isTrue(as.containsProperty(GlobalConstant.AssicationSessionId),"SessionId 丢失");
-        final  StoreProcessor sp = (StoreProcessor)as.getProperty(GlobalConstant.AssicationSessionId);
-        try {
-            sp.saveDicomInfo();
-        } catch (IOException ioException) {
-            ioException.printStackTrace();
-        } finally {
-            sp.clear();
-        }
         as.clearProperty(GlobalConstant.AssicationSessionId);
         super.onClose(as);
     }
