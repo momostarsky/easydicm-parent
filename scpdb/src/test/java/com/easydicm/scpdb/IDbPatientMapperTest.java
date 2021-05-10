@@ -7,7 +7,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.script.ScriptEngineFactory;
+import javax.script.ScriptEngineManager;
 import java.io.IOException;
+import java.util.List;
 
 class IDbPatientMapperTest {
 
@@ -41,9 +44,12 @@ class IDbPatientMapperTest {
 
     @Test
     void insert() {
-//        try (SqlSession session = sqlSessionFactory.openSession()) {
-//
-//
-//        }
+        ScriptEngineManager manager = new ScriptEngineManager();
+        List<ScriptEngineFactory> factories = manager.getEngineFactories();
+        for (ScriptEngineFactory factory : factories)
+        {
+            System.out.println(factory.getNames());
+        }
+
     }
 }

@@ -1,6 +1,4 @@
 package com.easydicm.storescp.services.impl;
-
-
 import com.easydicm.scpdb.mapper.IDbPatientMapper;
 import com.easydicm.storescp.services.IDicomSave;
 import com.easydicm.storescp.services.IMessageQueueWriter;
@@ -9,7 +7,7 @@ import org.dcm4che3.data.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -21,10 +19,10 @@ import java.nio.file.Paths;
 public class DicomSaveImpl extends BaseImpl implements IDicomSave {
 
 
-    private IDbPatientMapper dbPatientMapper;
+    private final IDbPatientMapper dbPatientMapper;
 
 
-    private IMessageQueueWriter messageQueueWriter;
+    private final IMessageQueueWriter messageQueueWriter;
 
 
 
@@ -42,14 +40,17 @@ public class DicomSaveImpl extends BaseImpl implements IDicomSave {
 
 
     @Override
-    public Path computeSavePath(Attributes attr) {
+    public Path computeSavePath(Attributes attr)  throws  IOException{
         String patId = attr.getString(Tag.PatientID, "");
         String stdId = attr.getString(Tag.StudyInstanceUID, "");
         String serId = attr.getString(Tag.SeriesInstanceUID, "");
         String sopUid = attr.getString(Tag.SOPInstanceUID);
         Path save = Paths.get(  this.storagePath, patId, stdId, serId, sopUid + ".dcm");
         if (!save.getParent().toFile().exists()) {
-            save.getParent().toFile().mkdirs();
+            boolean  ok =  save.getParent().toFile().mkdirs();
+            if(!ok){
+                throw  new IOException("创建存储目录失败:"+ save.toString());
+            }
         }
         return  save;
     }

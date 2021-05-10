@@ -87,7 +87,7 @@ public class StoreScp extends BasicCStoreSCP {
         final Attributes fmi = Attributes.createFileMetaInformation(iuid,cuid,tsuid);
 
         //-- 先把数据保存到磁盘
-        File  dicomF = new File("./" + iuid+".data");
+        final  File  dicomF = new File("./" + iuid+".data");
         FileUtils.copyInputStreamToFile(data, dicomF);
 
         try (DicomInputStream dis = new DicomInputStream(dicomF)) {

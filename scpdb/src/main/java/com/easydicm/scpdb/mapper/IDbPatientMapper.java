@@ -19,6 +19,6 @@ public interface IDbPatientMapper {
      */
     @Lang(FreeMarkerLanguageDriver.class)
     @Insert("sql/insert.ftl")
-    void  insert(@Param("p") Patient record);
+    void insert(@Param("p") Patient record);
 
 }
